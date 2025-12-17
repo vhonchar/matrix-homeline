@@ -47,3 +47,22 @@ jobs:
 #        if: github.ref == 'refs/heads/main'
         working-directory: ./terraform
         run: terraform apply -input=false -auto-approve
+
+      - name: Read Terraform outputs
+        id: tf_out
+        working-directory: ./terraform
+        run: |
+          echo "instance_id=$(terraform output -raw matrix_instance_id)" >> "$GITHUB_OUTPUT"
+          echo "public_ip=$(terraform output -raw matrix_public_ip)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish Terraform outputs (Job Summary)
+        run: |
+          {
+            echo "## Terraform Outputs"
+            echo ""
+            echo "| Key | Value |"
+            echo "|---|---|"
+            echo "| Instance ID | \`${{ steps.tf_out.outputs.instance_id }}\` |"
+            echo "| Public IP | \`${{ steps.tf_out.outputs.public_ip }}\` |"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
