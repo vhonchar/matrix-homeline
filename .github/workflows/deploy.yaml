@@ -6,6 +6,11 @@ on:
       - main
   workflow_dispatch: {}
 
+# needed for OIDC authentication into AWS
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   terraform:
     runs-on: ubuntu-latest
@@ -25,11 +30,10 @@ jobs:
         with:
           terraform_version: 1.9.0
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: arn:aws:iam::887016236946:role/github-terraform-matrix-homeline
           aws-region: eu-central-1
 
       - name: Terraform Init
@@ -40,7 +44,7 @@ jobs:
         working-directory: ./terraform
         run: terraform plan -input=false
 
-      - name: Terraform Apply
-#        if: github.ref == 'refs/heads/main'
-        working-directory: ./terraform
-        run: terraform apply -input=false -auto-approve
+#      - name: Terraform Apply
+##        if: github.ref == 'refs/heads/main'
+#        working-directory: ./terraform
+#        run: terraform apply -input=false -auto-approve
