@@ -1,0 +1,16 @@
+.idea
+
+# Terraform local state and caches
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Sensitive local auto-vars
+*.tfvars
+*.auto.tfvars

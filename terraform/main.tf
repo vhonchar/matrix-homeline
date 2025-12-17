@@ -1,0 +1,99 @@
+########################################
+# Data sources
+########################################
+
+# Latest Ubuntu 22.04 LTS AMI in the chosen region (Canonical)
+data "aws_ami" "ubuntu" {
+  most_recent = true
+
+  owners = ["099720109477"] # Canonical
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# Use the default VPC for simplicity
+data "aws_vpc" "default" {
+  default = true
+}
+
+# All subnets in the default VPC
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
+}
+
+########################################
+# Networking
+########################################
+
+resource "aws_security_group" "matrix" {
+  name        = "matrix-sg"
+  description = "Allow SSH and HTTP/HTTPS for Matrix/Element host"
+  vpc_id      = data.aws_vpc.default.id
+
+  # SSH access (restrict this to your IP later)
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [var.allowed_ssh_cidr]
+  }
+
+  # HTTP
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # HTTPS
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Outbound: allow everything
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+########################################
+# Compute
+########################################
+
+resource "aws_instance" "matrix" {
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = var.instance_type
+
+  # Pick the first subnet from the default VPC
+  subnet_id = tolist(data.aws_subnets.default.ids)[0]
+
+  vpc_security_group_ids      = [aws_security_group.matrix.id]
+  associate_public_ip_address = true
+
+  # Optional SSH key (if provided)
+  key_name = var.ssh_key_name != "" ? var.ssh_key_name : null
+
+  user_data = local.user_data
+
+  tags = {
+    Name = var.instance_name
+  }
+}
