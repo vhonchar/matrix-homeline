@@ -17,7 +17,6 @@ jobs:
 
     env:
       TF_IN_AUTOMATION: "true"
-#      TF_CLI_ARGS: "-no-color"
       TF_VAR_aws_region: "eu-central-1"
       TF_VAR_ssh_key_name: "goncharvell-eu-central"
 
@@ -44,7 +43,7 @@ jobs:
         working-directory: ./terraform
         run: terraform plan -input=false
 
-#      - name: Terraform Apply
-##        if: github.ref == 'refs/heads/main'
-#        working-directory: ./terraform
-#        run: terraform apply -input=false -auto-approve
+      - name: Terraform Apply
+#        if: github.ref == 'refs/heads/main'
+        working-directory: ./terraform
+        run: terraform apply -input=false -auto-approve
