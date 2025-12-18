@@ -78,7 +78,7 @@ jobs:
               --region "$REGION" \
               --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
               --query "InstanceInformationList[0].PingStatus" \
-              --output text 2>/dev/null || true)
+              --output text 2>&1)
 
             if [[ "$STATUS" == "Online" ]]; then
               echo "SSM is online for instance $INSTANCE_ID"
