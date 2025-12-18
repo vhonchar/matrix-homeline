@@ -33,3 +33,18 @@ variable "ssm_param_path" {
   default     = "/matrix-homeline/prod"
 }
 
+variable "matrix_volumes" {
+  description = "EBS volumes for matrix homeline"
+  type = map(object({
+    size_gb     = number
+    device_name = string # e.g. /dev/sdf, /dev/sdg, /dev/sdh
+    mount_path  = string # used by user_data
+  }))
+
+  default = {
+    postgres = { size_gb = 20, device_name = "/dev/sdf", mount_path = "/srv/matrix/postgres" }
+    synapse  = { size_gb = 50, device_name = "/dev/sdg", mount_path = "/srv/matrix/synapse" }
+    le       = { size_gb = 5, device_name = "/dev/sdh", mount_path = "/srv/matrix/letsencrypt" }
+  }
+}
+
