@@ -72,6 +72,6 @@ systemctl restart amazon-ssm-agent
 systemctl --no-pager status amazon-ssm-agent || true
 
 ############################################
-# 3) Write a marker so you can detect completion
+# 3) Write a marker to detect completion
 ############################################
 echo "Bootstrap completed at $(date -Is)" > /var/log/user-data-bootstrap.done
