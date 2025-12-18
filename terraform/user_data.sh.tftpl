@@ -2,7 +2,7 @@
 set -euxo pipefail
 
 ############################################
-# Basic OS update + prerequisites
+# 0) Basic OS update + prerequisites
 ############################################
 export DEBIAN_FRONTEND=noninteractive
 
@@ -18,7 +18,7 @@ apt-get install -y \
   jq
 
 ############################################
-# Install Docker Engine + Compose plugin
+# 1) Install Docker Engine + Compose plugin
 ############################################
 
 # Add Docker GPG key
@@ -29,9 +29,9 @@ chmod a+r /etc/apt/keyrings/docker.gpg
 
 # Add Docker apt repository
 echo \
-  "deb [arch=$$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
   https://download.docker.com/linux/ubuntu \
-  $$(lsb_release -cs) stable" \
+  $(lsb_release -cs) stable" \
   > /etc/apt/sources.list.d/docker.list
 
 apt-get update
@@ -83,7 +83,7 @@ for DEV in "$${!MOUNTS[@]}"; do
   MP="$${MOUNTS[$DEV]}"
 
   # Resolve real device (Nitro instances often remap /dev/sdX -> /dev/nvme*n1)
-  REAL_DEV="$$(readlink -f "$DEV" 2>/dev/null || echo "$DEV")"
+  REAL_DEV="$(readlink -f "$DEV" 2>/dev/null || echo "$DEV")"
 
   mkdir -p "$MP"
 
@@ -92,7 +92,7 @@ for DEV in "$${!MOUNTS[@]}"; do
     mkfs.ext4 -F "$REAL_DEV"
   fi
 
-  UUID="$$(blkid -s UUID -o value "$REAL_DEV")"
+  UUID="$(blkid -s UUID -o value "$REAL_DEV")"
   grep -q "UUID=$UUID" /etc/fstab || echo "UUID=$UUID $MP ext4 defaults,nofail 0 2" >> /etc/fstab
 done
 
@@ -101,4 +101,4 @@ mount -a
 ############################################
 # Write a marker to detect completion
 ############################################
-echo "Bootstrap completed at $$(date -Is)" > /var/log/user-data-bootstrap.done
+echo "Bootstrap completed at $(date -Is)" > /var/log/user-data-bootstrap.done
