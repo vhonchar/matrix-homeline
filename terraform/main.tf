@@ -78,6 +78,7 @@ resource "aws_instance" "matrix" {
   iam_instance_profile = aws_iam_instance_profile.ec2_ssm_profile.name
 
   user_data = local.user_data
+  user_data_replace_on_change = true
 
   tags = {
     Name = var.instance_name
