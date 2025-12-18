@@ -72,13 +72,15 @@ jobs:
           set -euo pipefail
           INSTANCE_ID="${{ steps.tf_out.outputs.instance_id }}"
           REGION=$TF_VAR_aws_region
+          
+          aws ec2 wait instance-running --region "$REGION" --instance-ids "$INSTANCE_ID"
 
           for i in {1..20}; do   # 20 × 15s = 5 minutes
             STATUS=$(aws ssm describe-instance-information \
               --region "$REGION" \
               --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
               --query "InstanceInformationList[0].PingStatus" \
-              --output text 2>&1)
+              --output text)
 
             if [[ "$STATUS" == "Online" ]]; then
               echo "SSM is online for instance $INSTANCE_ID"
