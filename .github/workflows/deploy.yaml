@@ -67,11 +67,19 @@ jobs:
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # wait up to 5 minutes for the instance to start
       - name: Wait for EC2 instance status checks (max 5 minutes)
+        shell: bash
         run: |
-          aws ec2 wait instance-status-ok \
+          set -euo pipefail
+          INSTANCE_ID="${{ steps.tf_out.outputs.instance_id }}"
+
+          # Kills the waiter after 300 seconds if it hasn't succeeded
+          if timeout 300 aws ec2 wait instance-status-ok \
             --region eu-central-1 \
-            --instance-ids "${{ steps.tf_out.outputs.instance_id }}" \
-            --delay 15 \
-            --max-attempts 20
+            --instance-ids "$INSTANCE_ID"
+          then
+            echo "EC2 status checks passed for $INSTANCE_ID"
+          else
+            echo "Timed out (5 minutes) waiting for EC2 status checks for $INSTANCE_ID"
+            exit 1
+          fi
