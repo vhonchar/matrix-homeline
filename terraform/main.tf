@@ -2,7 +2,6 @@
 # Data sources
 ########################################
 
-# Latest Ubuntu 22.04 LTS AMI in the chosen region (Canonical)
 data "aws_ami" "ubuntu" {
   most_recent = true
 
@@ -19,12 +18,10 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-# Use the default VPC for simplicity
 data "aws_vpc" "default" {
   default = true
 }
 
-# All subnets in the default VPC
 data "aws_subnets" "default" {
   filter {
     name   = "vpc-id"
@@ -40,14 +37,6 @@ resource "aws_security_group" "matrix" {
   name        = "matrix-sg"
   description = "Allow SSH and HTTP/HTTPS for Matrix/Element host"
   vpc_id      = data.aws_vpc.default.id
-
-  # SSH access (restrict this to your IP later)
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [var.allowed_ssh_cidr]
-  }
 
   # HTTP
   ingress {
@@ -82,14 +71,11 @@ resource "aws_instance" "matrix" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = var.instance_type
 
-  # Pick the first subnet from the default VPC
   subnet_id = tolist(data.aws_subnets.default.ids)[0]
 
   vpc_security_group_ids      = [aws_security_group.matrix.id]
   associate_public_ip_address = true
-
-  # Optional SSH key (if provided)
-  key_name = var.ssh_key_name != "" ? var.ssh_key_name : null
+  iam_instance_profile = aws_iam_instance_profile.ec2_ssm_profile.name
 
   user_data = local.user_data
 

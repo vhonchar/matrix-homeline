@@ -15,16 +15,3 @@ variable "instance_name" {
   description = "Tag Name for the EC2 instance"
   default     = "matrix-homeserver"
 }
-
-variable "allowed_ssh_cidr" {
-  type        = string
-  description = "CIDR allowed to SSH into the instance"
-  default     = "0.0.0.0/0" # tighten to your IP later
-}
-
-# Optional: if you already have an AWS key pair you want to use for SSH
-variable "ssh_key_name" {
-  type        = string
-  description = "Existing AWS key pair name to attach for SSH access"
-  default     = ""
-}
