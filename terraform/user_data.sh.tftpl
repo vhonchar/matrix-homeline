@@ -15,7 +15,9 @@ apt-get install -y \
   gnupg \
   lsb-release \
   unzip \
-  jq
+  jq \
+  awscli \
+  git
 
 ############################################
 # 1) Install Docker Engine + Compose plugin
@@ -29,9 +31,9 @@ chmod a+r /etc/apt/keyrings/docker.gpg
 
 # Add Docker apt repository
 echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  "deb [arch=$$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
   https://download.docker.com/linux/ubuntu \
-  $(lsb_release -cs) stable" \
+  $$(lsb_release -cs) stable" \
   > /etc/apt/sources.list.d/docker.list
 
 apt-get update
@@ -41,9 +43,7 @@ apt-get install -y \
   docker-ce-cli \
   containerd.io \
   docker-buildx-plugin \
-  docker-compose-plugin \
-  awscli \
-  git
+  docker-compose-plugin
 
 systemctl enable docker
 systemctl start docker
@@ -85,11 +85,11 @@ mkdir -p /srv/matrix
 # Wait a bit for block devices to appear
 sleep 5
 
-for DEV in "${!MOUNTS[@]}"; do
-  MP="${MOUNTS[$DEV]}"
+for DEV in "$${!MOUNTS[@]}"; do
+  MP="$${MOUNTS[$DEV]}"
 
   # Resolve real device (Nitro instances often remap /dev/sdX -> /dev/nvme*n1)
-  REAL_DEV="$(readlink -f "$DEV" 2>/dev/null || true)"
+  REAL_DEV="$$(readlink -f "$DEV" 2>/dev/null || true)"
   if [ -z "$REAL_DEV" ] || [ ! -b "$REAL_DEV" ]; then
     REAL_DEV="$DEV"
   fi
@@ -101,7 +101,7 @@ for DEV in "${!MOUNTS[@]}"; do
     mkfs.ext4 -F "$REAL_DEV"
   fi
 
-  UUID="$(blkid -s UUID -o value "$REAL_DEV")"
+  UUID="$$(blkid -s UUID -o value "$REAL_DEV")"
   grep -q "UUID=$UUID" /etc/fstab || echo "UUID=$UUID $MP ext4 defaults,nofail 0 2" >> /etc/fstab
 done
 
@@ -110,4 +110,4 @@ mount -a
 ############################################
 # Write a marker to detect completion
 ############################################
-echo "Bootstrap completed at $(date -Is)" > /var/log/user-data-bootstrap.done
+echo "Bootstrap completed at $$(date -Is)" > /var/log/user-data-bootstrap.done
