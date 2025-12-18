@@ -1,35 +1,4 @@
 ########################################
-# Data sources
-########################################
-
-data "aws_ami" "ubuntu" {
-  most_recent = true
-
-  owners = ["099720109477"] # Canonical
-
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-}
-
-data "aws_vpc" "default" {
-  default = true
-}
-
-data "aws_subnets" "default" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
-  }
-}
-
-########################################
 # Networking
 ########################################
 
@@ -71,7 +40,7 @@ resource "aws_instance" "matrix" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = var.instance_type
 
-  subnet_id = tolist(data.aws_subnets.default.ids)[0]
+  subnet_id = local.selected_subnet_id
 
   vpc_security_group_ids      = [aws_security_group.matrix.id]
   associate_public_ip_address = true

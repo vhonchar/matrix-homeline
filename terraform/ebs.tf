@@ -1,7 +1,11 @@
+data "aws_subnet" "selected" {
+  id = local.selected_subnet_id
+}
+
 resource "aws_ebs_volume" "matrix" {
   for_each = var.matrix_volumes
 
-  availability_zone = aws_instance.matrix.availability_zone
+  availability_zone = data.aws_subnet.selected.availability_zone
   type              = "gp3"
   size              = each.value.size_gb
   encrypted         = true
@@ -9,6 +13,10 @@ resource "aws_ebs_volume" "matrix" {
   tags = {
     Name = "${var.instance_name}-${each.key}"
     App  = "matrix-homeline"
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
