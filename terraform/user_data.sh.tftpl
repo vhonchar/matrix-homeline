@@ -15,9 +15,7 @@ apt-get install -y \
   gnupg \
   lsb-release \
   unzip \
-  jq \
-  awscli \
-  git
+  jq
 
 ############################################
 # 1) Install Docker Engine + Compose plugin
@@ -43,7 +41,9 @@ apt-get install -y \
   docker-ce-cli \
   containerd.io \
   docker-buildx-plugin \
-  docker-compose-plugin
+  docker-compose-plugin \
+  awscli \
+  git
 
 systemctl enable docker
 systemctl start docker
@@ -54,24 +54,10 @@ if id "ubuntu" &>/dev/null; then
 fi
 
 ############################################
-# 2) Install/Enable AWS SSM Agent
+# (Optional) Log SSM agent status, but do not fail bootstrap
 ############################################
-# Ubuntu 22.04 often already includes it, but we ensure it exists and is running.
-
-if systemctl list-unit-files | grep -q "^amazon-ssm-agent"; then
-  echo "SSM Agent unit exists."
-else
-  echo "SSM Agent unit not found; installing amazon-ssm-agent..."
-  # Install from Ubuntu repos (works reliably for Jammy)
-  apt-get update
-  apt-get install -y amazon-ssm-agent
-fi
-
-systemctl enable amazon-ssm-agent
-systemctl restart amazon-ssm-agent
-
-# Optional: quick status output into cloud-init logs
 systemctl --no-pager status amazon-ssm-agent || true
+systemctl --no-pager status snap.amazon-ssm-agent.amazon-ssm-agent || true
 
 ############################################
 # Mount and format EBS volumes
@@ -96,17 +82,18 @@ done
 for DEV in "$${!MOUNTS[@]}"; do
   MP="$${MOUNTS[$DEV]}"
 
+  # Resolve real device (Nitro instances often remap /dev/sdX -> /dev/nvme*n1)
   REAL_DEV="$$(readlink -f "$DEV" 2>/dev/null || echo "$DEV")"
 
   mkdir -p "$MP"
 
+  # Create filesystem if missing
   if ! blkid "$REAL_DEV" >/dev/null 2>&1; then
     mkfs.ext4 -F "$REAL_DEV"
   fi
 
   UUID="$$(blkid -s UUID -o value "$REAL_DEV")"
-  grep -q "UUID=$UUID" /etc/fstab || \
-    echo "UUID=$UUID $MP ext4 defaults,nofail 0 2" >> /etc/fstab
+  grep -q "UUID=$UUID" /etc/fstab || echo "UUID=$UUID $MP ext4 defaults,nofail 0 2" >> /etc/fstab
 done
 
 mount -a
