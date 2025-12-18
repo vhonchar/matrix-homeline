@@ -18,6 +18,7 @@ jobs:
     env:
       TF_IN_AUTOMATION: "true"
       TF_VAR_aws_region: "eu-central-1"
+      TF_VAR_repo_url: "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
 
     steps:
       - name: Checkout

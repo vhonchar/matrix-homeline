@@ -41,7 +41,9 @@ apt-get install -y \
   docker-ce-cli \
   containerd.io \
   docker-buildx-plugin \
-  docker-compose-plugin
+  docker-compose-plugin \
+  awscli \
+  git
 
 systemctl enable docker
 systemctl start docker
