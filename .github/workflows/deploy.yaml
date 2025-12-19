@@ -28,7 +28,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set TV variables
+      - name: Set TF variables
         run: |
           echo "TF_IN_AUTOMATION=true" >> $GITHUB_ENV
           echo "TF_VAR_aws_region=${{ env.AWS_REGION }}" >> $GITHUB_ENV

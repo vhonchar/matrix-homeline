@@ -32,7 +32,7 @@ resource "aws_ssm_document" "matrix_homeline_launcher" {
   name          = var.ssm_launcher_document_name
   document_type = "Command"
 
-  content = templatefile("git-update-and-deploy.json.tftpl", {
+  content = templatefile("ssm/git-update-and-deploy.json.tftpl", {
     app_dir    = var.app_dir
     repo_url   = var.repo_url
     param_path = "${var.ssm_param_path}/"
