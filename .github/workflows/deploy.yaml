@@ -6,16 +6,15 @@ on:
       - main
   workflow_dispatch: {}
 
-# needed for OIDC authentication into AWS
 permissions:
   id-token: write
   contents: read
 
 env:
-  AWS_REGION: "eu-central-1"
-  SSM_ROLE_TO_ASSUME: "arn:aws:iam::887016236946:role/github-terraform-matrix-homeline"
-  REPO_URL: "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
-  SSM_DOCUMENT_NAME: "matrix-homeline-launcher"
+  AWS_REGION: eu-central-1
+  SSM_ROLE_TO_ASSUME: arn:aws:iam::887016236946:role/github-terraform-matrix-homeline
+  REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
+  SSM_DOCUMENT_NAME: matrix-homeline-launcher
 
 jobs:
   terraform:
@@ -27,9 +26,9 @@ jobs:
 
     env:
       TF_IN_AUTOMATION: "true"
-      TF_VAR_aws_region: "${AWS_REGION}"
-      TF_VAR_repo_url: "${REPO_URL}"
-      TF_VAR_ssm_launcher_document_name: "${SSM_DOCUMENT_NAME}"
+      TF_VAR_aws_region: ${{ env.AWS_REGION }}
+      TF_VAR_repo_url: ${{ env.REPO_URL }}
+      TF_VAR_ssm_launcher_document_name: ${{ env.SSM_DOCUMENT_NAME }}
 
     steps:
       - name: Checkout
@@ -43,8 +42,8 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: "${SSM_ROLE_TO_ASSUME}"
-          aws-region: "${AWS_REGION}"
+          role-to-assume: ${{ env.SSM_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Init
         working-directory: ./terraform
@@ -80,7 +79,7 @@ jobs:
       - name: Wait for SSM to become available (max 5 minutes)
         shell: bash
         env:
-          INSTANCE_ID: "${{ steps.tf_out.outputs.instance_id }}"
+          INSTANCE_ID: ${{ steps.tf_out.outputs.instance_id }}
         run: |
           set -euo pipefail
 
@@ -110,15 +109,15 @@ jobs:
     needs: terraform
 
     env:
-      INSTANCE_ID: "${{ needs.terraform.outputs.instance_id }}"
-      REF: "${{ github.sha }}"
+      INSTANCE_ID: ${{ needs.terraform.outputs.instance_id }}
+      REF: ${{ github.sha }}
 
     steps:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: "${SSM_ROLE_TO_ASSUME}"
-          aws-region: "${AWS_REGION}"
+          role-to-assume: ${{ env.SSM_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Send deploy command via SSM
         id: ssm
@@ -148,7 +147,7 @@ jobs:
       - name: Wait for deployment to finish + print logs on failure
         shell: bash
         env:
-          COMMAND_ID: "${{ steps.ssm.outputs.command_id }}"
+          COMMAND_ID: ${{ steps.ssm.outputs.command_id }}
         run: |
           set -euo pipefail
 
