@@ -24,15 +24,16 @@ jobs:
       instance_id: ${{ steps.tf_out.outputs.instance_id }}
       public_ip: ${{ steps.tf_out.outputs.public_ip }}
 
-    env:
-      TF_IN_AUTOMATION: "true"
-      TF_VAR_aws_region: ${{ env.AWS_REGION }}
-      TF_VAR_repo_url: ${{ env.REPO_URL }}
-      TF_VAR_ssm_launcher_document_name: ${{ env.SSM_DOCUMENT_NAME }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set TV variables
+        run: |
+          echo "TF_IN_AUTOMATION=true" >> $GITHUB_ENV
+          echo "TF_VAR_aws_region=${{ env.AWS_REGION }}" >> $GITHUB_ENV
+          echo "TF_VAR_repo_url=${{ env.REPO_URL }}" >> $GITHUB_ENV
+          echo "TF_VAR_ssm_launcher_document_name=${{ env.SSM_DOCUMENT_NAME }}" >> $GITHUB_ENV
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
