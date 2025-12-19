@@ -29,10 +29,10 @@ resource "aws_ssm_parameter" "turn_shared_secret" {
 }
 
 resource "aws_ssm_document" "matrix_homeline_launcher" {
-  name          = "${var.instance_name}-launcher"
+  name          = var.ssm_launcher_document_name
   document_type = "Command"
 
-  content = templatefile("${path.module}/ssm/matrix-homeline-deploy.json.tftpl", {
+  content = templatefile("git-update-and-deploy.json.tftpl", {
     app_dir    = var.app_dir
     repo_url   = var.repo_url
     param_path = "${var.ssm_param_path}/"

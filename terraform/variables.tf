@@ -33,6 +33,12 @@ variable "ssm_param_path" {
   default     = "/matrix-homeline/prod"
 }
 
+variable "ssm_launcher_document_name" {
+  description = "SSM document name to use for update and launch deployment"
+  type        = string
+  default     = "matrix-hotline-launcher"
+}
+
 variable "matrix_volumes" {
   description = "EBS volumes for matrix homeline"
   type = map(object({

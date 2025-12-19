@@ -11,14 +11,25 @@ permissions:
   id-token: write
   contents: read
 
+env:
+  AWS_REGION: "eu-central-1"
+  SSM_ROLE_TO_ASSUME: "arn:aws:iam::887016236946:role/github-terraform-matrix-homeline"
+  REPO_URL: "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+  SSM_DOCUMENT_NAME: "matrix-homeline-launcher"
+
 jobs:
   terraform:
     runs-on: ubuntu-latest
 
+    outputs:
+      instance_id: ${{ steps.tf_out.outputs.instance_id }}
+      public_ip: ${{ steps.tf_out.outputs.public_ip }}
+
     env:
       TF_IN_AUTOMATION: "true"
-      TF_VAR_aws_region: "eu-central-1"
-      TF_VAR_repo_url: "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+      TF_VAR_aws_region: "${AWS_REGION}"
+      TF_VAR_repo_url: "${REPO_URL}"
+      TF_VAR_ssm_launcher_document_name: "${SSM_DOCUMENT_NAME}"
 
     steps:
       - name: Checkout
@@ -32,8 +43,8 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::887016236946:role/github-terraform-matrix-homeline
-          aws-region: eu-central-1
+          role-to-assume: "${SSM_ROLE_TO_ASSUME}"
+          aws-region: "${AWS_REGION}"
 
       - name: Terraform Init
         working-directory: ./terraform
@@ -44,7 +55,6 @@ jobs:
         run: terraform plan -input=false
 
       - name: Terraform Apply
-#        if: github.ref == 'refs/heads/main'
         working-directory: ./terraform
         run: terraform apply -input=false -auto-approve
 
@@ -69,19 +79,19 @@ jobs:
 
       - name: Wait for SSM to become available (max 5 minutes)
         shell: bash
+        env:
+          INSTANCE_ID: "${{ steps.tf_out.outputs.instance_id }}"
         run: |
           set -euo pipefail
-          INSTANCE_ID="${{ steps.tf_out.outputs.instance_id }}"
-          REGION=$TF_VAR_aws_region
-          
-          aws ec2 wait instance-running --region "$REGION" --instance-ids "$INSTANCE_ID"
+
+          aws ec2 wait instance-running --region "$AWS_REGION" --instance-ids "$INSTANCE_ID"
 
           for i in {1..20}; do   # 20 × 15s = 5 minutes
             STATUS=$(aws ssm describe-instance-information \
-              --region "$REGION" \
+              --region "$AWS_REGION" \
               --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
               --query "InstanceInformationList[0].PingStatus" \
-              --output text)
+              --output text || true)
 
             if [[ "$STATUS" == "Online" ]]; then
               echo "SSM is online for instance $INSTANCE_ID"
@@ -93,4 +103,100 @@ jobs:
           done
 
           echo "Timed out waiting for SSM to become available."
+          exit 1
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: terraform
+
+    env:
+      INSTANCE_ID: "${{ needs.terraform.outputs.instance_id }}"
+      REF: "${{ github.sha }}"
+
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: "${SSM_ROLE_TO_ASSUME}"
+          aws-region: "${AWS_REGION}"
+
+      - name: Send deploy command via SSM
+        id: ssm
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Instance: $INSTANCE_ID"
+          echo "Repo: $REPO_URL"
+          echo "Ref: $REF"
+          echo "SSM Document: $SSM_DOCUMENT_NAME"
+
+          COMMAND_ID=$(
+            aws ssm send-command \
+              --region "$AWS_REGION" \
+              --document-name "$SSM_DOCUMENT_NAME" \
+              --instance-ids "$INSTANCE_ID" \
+              --parameters "RepoUrl=$REPO_URL,Ref=$REF" \
+              --comment "matrix-homeline deploy from GitHub Actions" \
+              --query "Command.CommandId" \
+              --output text
+          )
+
+          echo "command_id=$COMMAND_ID" >> "$GITHUB_OUTPUT"
+          echo "SSM CommandId: $COMMAND_ID"
+
+      - name: Wait for deployment to finish + print logs on failure
+        shell: bash
+        env:
+          COMMAND_ID: "${{ steps.ssm.outputs.command_id }}"
+        run: |
+          set -euo pipefail
+
+          echo "Waiting for SSM command $COMMAND_ID..."
+
+          for i in {1..60}; do  # ~10 minutes (60 * 10s)
+            STATUS=$(aws ssm get-command-invocation \
+              --region "$AWS_REGION" \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$INSTANCE_ID" \
+              --query "Status" \
+              --output text || true)
+
+            case "$STATUS" in
+              Success)
+                echo "Deployment succeeded."
+                exit 0
+                ;;
+              Failed|Cancelled|TimedOut)
+                echo "Deployment finished with status: $STATUS"
+                echo ""
+                echo "----- STDOUT -----"
+                aws ssm get-command-invocation \
+                  --region "$AWS_REGION" \
+                  --command-id "$COMMAND_ID" \
+                  --instance-id "$INSTANCE_ID" \
+                  --query "StandardOutputContent" \
+                  --output text || true
+                echo ""
+                echo "----- STDERR -----"
+                aws ssm get-command-invocation \
+                  --region "$AWS_REGION" \
+                  --command-id "$COMMAND_ID" \
+                  --instance-id "$INSTANCE_ID" \
+                  --query "StandardErrorContent" \
+                  --output text || true
+                exit 1
+                ;;
+              InProgress|Pending|Delayed|"")
+                echo "Status: ${STATUS:-none} (poll $i/60)"
+                sleep 10
+                ;;
+              *)
+                echo "Status: $STATUS (poll $i/60)"
+                sleep 10
+                ;;
+            esac
+          done
+
+          echo "Timed out waiting for deployment to finish."
           exit 1
