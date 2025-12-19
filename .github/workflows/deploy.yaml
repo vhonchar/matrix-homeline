@@ -111,7 +111,7 @@ jobs:
 
     env:
       INSTANCE_ID: ${{ needs.terraform.outputs.instance_id }}
-      REF: ${{ github.sha }}
+      REF: ${{ github.ref_name }}
 
     steps:
       - name: Configure AWS credentials (OIDC)
@@ -127,7 +127,6 @@ jobs:
           set -euo pipefail
 
           echo "Instance: $INSTANCE_ID"
-          echo "Repo: $REPO_URL"
           echo "Ref: $REF"
           echo "SSM Document: $SSM_DOCUMENT_NAME"
 
@@ -136,7 +135,7 @@ jobs:
               --region "$AWS_REGION" \
               --document-name "$SSM_DOCUMENT_NAME" \
               --instance-ids "$INSTANCE_ID" \
-              --parameters "RepoUrl=$REPO_URL,Ref=$REF" \
+              --parameters "Ref=$REF" \
               --comment "matrix-homeline deploy from GitHub Actions" \
               --query "Command.CommandId" \
               --output text
