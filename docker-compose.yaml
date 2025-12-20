@@ -1,15 +1,131 @@
+version: "3.9"
+
+name: matrix
+
+# Bind all persistent state to a host path (mount this path onto your EBS volume).
+# Example (on the host):
+#   EBS mounted at /mnt/matrix-data
+#   export MATRIX_DATA_DIR=/mnt/matrix-data
+#
+# Directory layout created/used by this compose:
+#   ${MATRIX_DATA_DIR}/
+#     postgres/
+#     synapse/
+#     redis/
+#     coturn/
+#
+# NOTE: If you are using your existing deploy.sh flow, set MATRIX_DATA_DIR in your .env
+# (or export it) to point at the EBS-backed mount path.
+
+networks:
+  matrix:
+    name: matrix
+    driver: bridge
+
 services:
-  envdump:
-    image: alpine:3.20
-    container_name: matrix-envdump
+  postgres:
+    image: postgres:16-alpine
+    container_name: matrix-postgres
     restart: unless-stopped
+    networks: [matrix]
     environment:
-      TEST_VAR: ${SYNAPSE_DB_PASSWORD}
-    command: >
-      sh -lc '
-        echo "=== envdump started: $(date -u +%Y-%m-%dT%H:%M:%SZ) ===";
-        echo "--- selected vars ---";
-        env | sort | sed -n "1,200p";
-        echo "=== sleeping ===";
-        sleep 3600
-      '
+      POSTGRES_DB: synapse
+      POSTGRES_USER: synapse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - /srv/matrix/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synapse -d synapse"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: matrix-redis
+    restart: unless-stopped
+    networks: [matrix]
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - /srv/matrix/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  synapse:
+    image: ghcr.io/element-hq/synapse:latest
+    container_name: matrix-synapse
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [matrix]
+    environment:
+      # TODO: domain
+      SYNAPSE_SERVER_NAME: "matrix-homeline.chilllab.dev"
+      SYNAPSE_REPORT_STATS: "no"
+      SYNAPSE_CONFIG_PATH: /data/homeserver.yaml
+      UID: "991"
+      GID: "991"
+    volumes:
+      - /srv/matrix/synapse:/data
+      - ./synapse/homeserver.yaml:/data/homeserver.yaml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8008/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+    expose:
+      - "8008"
+
+  element:
+    image: vectorim/element-web:latest
+    container_name: matrix-element
+    restart: unless-stopped
+    networks: [matrix]
+    volumes:
+      - ./element/config.json:/app/config.json:ro
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+
+  coturn:
+    image: coturn/coturn:latest
+    container_name: matrix-coturn
+    restart: unless-stopped
+    networks: [matrix]
+    volumes:
+      - /srv/matrix/coturn:/var/lib/coturn
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    command: ["-c", "/etc/coturn/turnserver.conf", "-n"]
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      - "5349:5349/tcp"
+      - "5349:5349/udp"
+      - "49160-49200:49160-49200/udp"
+
+  nginx:
+    image: nginx:alpine
+    container_name: matrix-nginx
+    depends_on:
+      synapse:
+        condition: service_healthy
+      element:
+        condition: service_started
+    restart: unless-stopped
+    networks: [matrix]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro

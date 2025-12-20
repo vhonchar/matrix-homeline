@@ -1,0 +1,94 @@
+# Synapse configuration
+# Server: matrix-homeline.chilllab.dev
+
+server_name: "matrix-homeline.chilllab.dev"
+
+# What clients should use to reach this homeserver (must match your public URL).
+public_baseurl: "https://matrix-homeline.chilllab.dev/"
+
+pid_file: /data/homeserver.pid
+
+# Paths inside the container (/data is on EBS per your compose)
+media_store_path: /data/media_store
+uploads_path: /data/uploads
+tmp_directory: /data/tmp
+log_config: "/data/matrix-homeline.chilllab.dev.log.config"
+
+# Generated/managed runtime keys live on EBS (/data)
+signing_key_path: "/data/matrix-homeline.chilllab.dev.signing.key"
+
+# DO NOT commit secrets. Render these placeholders during deploy.
+# Generate strong randoms (at least 32 bytes, base64/hex is fine).
+macaroon_secret_key: "${MACAROON_SECRET_KEY}"
+registration_shared_secret: "${REGISTRATION_SHARED_SECRET}"
+
+report_stats: false
+
+# If you plan to allow public registration later, flip these carefully.
+enable_registration: false
+enable_registration_without_verification: false
+
+# Recommended: allow users to deactivate their accounts
+account_validity:
+  enabled: false
+
+# Reverse proxy support (nginx terminates TLS and forwards to Synapse)
+# Your nginx must set X-Forwarded-Proto and X-Forwarded-For.
+listeners:
+  - port: 8008
+    tls: false
+    type: http
+    x_forwarded: true
+    resources:
+      - names: [client, federation]
+        compress: false
+
+# Database: Postgres in compose
+database:
+  name: psycopg2
+  args:
+    user: synapse
+    password: "${POSTGRES_PASSWORD}"
+    database: synapse
+    host: postgres
+    port: 5432
+    cp_min: 5
+    cp_max: 10
+
+# Redis (highly recommended for performance)
+redis:
+  enabled: true
+  host: redis
+  port: 6379
+
+# URL preview can be abused if left wide-open. Keep disabled unless you need it.
+url_preview_enabled: false
+
+# Federation defaults (keep trusted key servers)
+trusted_key_servers:
+  - server_name: "matrix.org"
+
+# TURN for VoIP (Element calls).
+# You have coturn in compose, but in most setups clients use the PUBLIC hostname.
+turn_uris:
+  - "turn:matrix-homeline.chilllab.dev:3478?transport=udp"
+  - "turn:matrix-homeline.chilllab.dev:3478?transport=tcp"
+turn_shared_secret: "${TURN_SHARED_SECRET}"
+turn_user_lifetime: "1h"
+turn_allow_guests: true
+
+# Conservative rate-limiting defaults (fine to start with)
+rc_message:
+  per_second: 0.5
+  burst_count: 30
+
+rc_login:
+  address:
+    per_second: 0.1
+    burst_count: 10
+  account:
+    per_second: 0.2
+    burst_count: 10
+  failed_attempts:
+    per_second: 0.05
+    burst_count: 5

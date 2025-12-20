@@ -1,31 +1,29 @@
-resource "random_password" "synapse_db_password" {
-  length  = 32
-  special = true
+locals {
+  secrets = {
+    POSTGRES_PASSWORD            = { length = 32, special = true }
+    MACAROON_SECRET_KEY          = { length = 64, special = true }
+    REGISTRATION_SHARED_SECRET   = { length = 64, special = true }
+    TURN_SHARED_SECRET           = { length = 64, special = true }
+  }
 }
 
-resource "random_password" "turn_shared_secret" {
-  length  = 32
-  special = false
+resource "random_password" "generated" {
+  for_each = local.secrets
+
+  length  = each.value.length
+  special = each.value.special
 }
 
-resource "aws_ssm_parameter" "synapse_db_password" {
-  name  = "${var.ssm_param_path}/SYNAPSE_DB_PASSWORD"
+resource "aws_ssm_parameter" "secrets" {
+  for_each = local.secrets
+
+  name  = "${var.ssm_param_path}/${each.key}"
   type  = "SecureString"
-  value = random_password.synapse_db_password.result
+  value = random_password.generated[each.key].result
 
-  # lifecycle {
-  #   prevent_destroy = true
-  # }
-}
-
-resource "aws_ssm_parameter" "turn_shared_secret" {
-  name  = "${var.ssm_param_path}/TURN_SHARED_SECRET"
-  type  = "SecureString"
-  value = random_password.turn_shared_secret.result
-
-  # lifecycle {
-  #   prevent_destroy = true
-  # }
+  lifecycle {
+    # prevent_destroy = true
+  }
 }
 
 resource "aws_ssm_document" "matrix_homeline_deploy" {

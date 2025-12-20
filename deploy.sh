@@ -64,8 +64,39 @@ aws ssm get-parameters-by-path \
 
 chmod 600 "$ENV_FILE"
 
+# --- Replace secrets in synapse/homeserver.yaml ---
+
+set -a
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+set +a
+
+TEMPLATE="$APP_DIR/synapse/homeserver-template.yaml"
+OUTFILE="$APP_DIR/synapse/homeserver.yaml"
+
+[[ -f "$TEMPLATE" ]] || { echo "Missing template: $TEMPLATE" >&2; exit 1; }
+
+required_vars=(
+  POSTGRES_PASSWORD
+  MACAROON_SECRET_KEY
+  REGISTRATION_SHARED_SECRET
+  TURN_SHARED_SECRET
+)
+
+for v in "${required_vars[@]}"; do
+  if [[ -z "${!v:-}" ]]; then
+    echo "Missing required env var from SSM/.env: $v" >&2
+    exit 1
+  fi
+done
+
+# Render with tight perms
+umask 077
+envsubst '${POSTGRES_PASSWORD} ${MACAROON_SECRET_KEY} ${REGISTRATION_SHARED_SECRET} ${TURN_SHARED_SECRET}' \
+  < "$TEMPLATE" > "$OUTFILE"
+chmod 600 "$OUTFILE"
+
 # --- Launch docker compose ---
-# Adjust if your compose file is not at repo root
 COMPOSE_DIR="$APP_DIR"
 cd "$COMPOSE_DIR"
 
