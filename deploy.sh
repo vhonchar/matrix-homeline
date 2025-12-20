@@ -104,6 +104,6 @@ chmod 600 "$OUTFILE"
 COMPOSE_DIR="$APP_DIR"
 cd "$COMPOSE_DIR"
 
-docker compose --env-file "$ENV_FILE" pull
+docker compose --env-file "$ENV_FILE" pull --quiet
 docker compose --env-file "$ENV_FILE" up -d --remove-orphans
 docker compose ps
