@@ -8,6 +8,16 @@ parameters:
     type: String
     default: ""  # optional: set to expected sha256 to enforce integrity
 mainSteps:
+  - name: PrepDownloadPath
+    action: aws:runShellScript
+    inputs:
+      runCommand:
+        - |
+          bash -lc '
+            set -euo pipefail
+            rm -f /tmp/deploy.sh
+            mkdir -p /tmp
+          '
   - name: DownloadScript
     action: aws:downloadContent
     inputs:
