@@ -48,10 +48,15 @@ apt-get install -y \
 systemctl enable docker
 systemctl start docker
 
-# Allow ubuntu user to run docker without sudo (if present)
+# Allow ubuntu and ssm users to run docker without sudo (if present)
 if id "ubuntu" &>/dev/null; then
   usermod -aG docker ubuntu
 fi
+if id "ssm-user" &>/dev/null; then
+  usermod -aG docker ssm-user
+fi
+
+usermod -aG docker ssm-user
 
 ############################################
 # (Optional) Log SSM agent status, but do not fail bootstrap
