@@ -48,7 +48,7 @@ apt-get install -y \
 systemctl enable docker
 systemctl start docker
 
-# Allow ubuntu and ssm users to run docker without sudo (if present)
+# Allow ubuntu user to run docker without sudo (if present)
 if id "ubuntu" &>/dev/null; then
   usermod -aG docker ubuntu
 fi
@@ -107,7 +107,7 @@ if [ -z "$existing_type" ]; then
   existing_uuid="$(blkid -o value -s UUID "$BYID")"
   existing_label="$(blkid -o value -s LABEL "$BYID" 2>/dev/null || true)"
 else
-  echo "Existing filesystem detected on $BYID: type=$existing_type uuid=${existing_uuid:-<none>} label=${existing_label:-<none>}"
+  echo "Existing filesystem detected on $BYID: type=$existing_type uuid=$${existing_uuid:-<none>} label=$${existing_label:-<none>}"
 
   # Do not reformat on re-attach. If desired FSTYPE differs, keep the real one for fstab.
   if [ -n "$FSTYPE" ] && [ "$existing_type" != "$FSTYPE" ]; then
@@ -117,7 +117,7 @@ else
 
   # Ensure LABEL is set to the expected value (safe; does not erase data).
   if [ -n "$LABEL" ] && [ "$existing_label" != "$LABEL" ]; then
-    echo "Relabeling $BYID from '${existing_label:-<empty>}' to '$LABEL' (type=$existing_type)"
+    echo "Relabeling $BYID from '$${existing_label:-<empty>}' to '$LABEL' (type=$existing_type)"
     case "$existing_type" in
       ext4) e2label "$BYID" "$LABEL" ;;
       xfs)  xfs_admin -L "$LABEL" "$BYID" ;;
