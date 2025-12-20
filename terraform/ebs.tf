@@ -16,7 +16,7 @@ resource "aws_ebs_volume" "matrix" {
   }
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
 
