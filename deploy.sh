@@ -57,7 +57,7 @@ aws ssm get-parameters-by-path \
 
     # Quote/escape value for dotenv compatibility (Docker Compose .env)
     gsub(/\\/, "\\\\", val);
-    gsub(/\"/, "\\\\\"", val);
+    gsub(/"/, "\\\"", val);
 
     printf "%s=\"%s\"\n", name, val
   }' >> "$ENV_FILE"
@@ -67,8 +67,12 @@ chmod 600 "$ENV_FILE"
 # --- Replace secrets in synapse/homeserver.yaml ---
 
 set -a
+# FIX: .env may contain $... inside secret values; with set -u this causes "unbound variable".
+# Disable nounset only for sourcing, then restore.
+set +u
 # shellcheck disable=SC1090
 source "$ENV_FILE"
+set -u
 set +a
 
 TEMPLATE="$APP_DIR/synapse/homeserver-template.yaml"
@@ -101,7 +105,5 @@ COMPOSE_DIR="$APP_DIR"
 cd "$COMPOSE_DIR"
 
 docker compose --env-file "$ENV_FILE" pull
-
 docker compose --env-file "$ENV_FILE" up -d --remove-orphans
-
 docker compose ps
