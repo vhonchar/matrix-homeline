@@ -65,7 +65,7 @@ systemctl --no-pager status amazon-ssm-agent || true
 systemctl --no-pager status snap.amazon-ssm-agent.amazon-ssm-agent || true
 
 ############################################
-# Mount and format EBS volumes
+# Mount and format EBS volume (safe on re-attach)
 ############################################
 
 VOLUME_ID='${volume_id}'
@@ -82,7 +82,10 @@ wait_for() {
   while true; do
     [ -b "$dev" ] && return 0
     now="$(date +%s)"
-    [ $((now - start)) -ge "$timeout_s" ] && echo "Timed out waiting for $dev" >&2 && return 1
+    if [ $((now - start)) -ge "$timeout_s" ]; then
+      echo "Timed out waiting for $dev" >&2
+      return 1
+    fi
     sleep 2
   done
 }
@@ -92,20 +95,55 @@ mkdir -p "$MOUNT_PATH"
 echo "Waiting for $BYID..."
 wait_for "$BYID" 300
 
-if ! blkid "$BYID" >/dev/null 2>&1; then
-  echo "No filesystem; creating $FSTYPE with label $LABEL"
+# Determine whether a filesystem already exists.
+existing_type="$(blkid -o value -s TYPE "$BYID" 2>/dev/null || true)"
+existing_uuid="$(blkid -o value -s UUID "$BYID" 2>/dev/null || true)"
+existing_label="$(blkid -o value -s LABEL "$BYID" 2>/dev/null || true)"
+
+if [ -z "$existing_type" ]; then
+  echo "No filesystem detected on $BYID; creating $FSTYPE with label $LABEL"
   case "$FSTYPE" in
     ext4) mkfs.ext4 -F -L "$LABEL" "$BYID" ;;
     xfs)  mkfs.xfs  -f -L "$LABEL" "$BYID" ;;
     *)    echo "Unsupported fstype: $FSTYPE" >&2; exit 1 ;;
   esac
+
+  existing_type="$(blkid -o value -s TYPE "$BYID")"
+  existing_uuid="$(blkid -o value -s UUID "$BYID")"
+  existing_label="$(blkid -o value -s LABEL "$BYID" 2>/dev/null || true)"
+else
+  echo "Existing filesystem detected on $BYID: type=$existing_type uuid=${existing_uuid:-<none>} label=${existing_label:-<none>}"
+
+  # Do not reformat on re-attach. If desired FSTYPE differs, keep the real one for fstab.
+  if [ -n "$FSTYPE" ] && [ "$existing_type" != "$FSTYPE" ]; then
+    echo "Note: requested fstype '$FSTYPE' differs from existing '$existing_type'; keeping existing type (no reformat)."
+    FSTYPE="$existing_type"
+  fi
+
+  # Ensure LABEL is set to the expected value (safe; does not erase data).
+  if [ -n "$LABEL" ] && [ "$existing_label" != "$LABEL" ]; then
+    echo "Relabeling $BYID from '${existing_label:-<empty>}' to '$LABEL' (type=$existing_type)"
+    case "$existing_type" in
+      ext4) e2label "$BYID" "$LABEL" ;;
+      xfs)  xfs_admin -L "$LABEL" "$BYID" ;;
+      *)    echo "Cannot relabel filesystem type '$existing_type'" >&2 ;;
+    esac
+  fi
+
+  existing_uuid="$(blkid -o value -s UUID "$BYID" 2>/dev/null || true)"
 fi
 
-if ! grep -qE "^LABEL=$${LABEL}[[:space:]]" /etc/fstab; then
-  echo "LABEL=$LABEL $MOUNT_PATH $FSTYPE defaults,nofail 0 2" >> /etc/fstab
+# Persist mount using UUID (most stable across reboots/reattach).
+if [ -z "$existing_uuid" ]; then
+  echo "ERROR: Unable to determine UUID for $BYID" >&2
+  exit 1
 fi
 
-mountpoint -q "$MOUNT_PATH" || mount "LABEL=$LABEL" "$MOUNT_PATH"
+if ! grep -Fq "UUID=$existing_uuid " /etc/fstab; then
+  echo "UUID=$existing_uuid $MOUNT_PATH $FSTYPE defaults,nofail 0 2" >> /etc/fstab
+fi
+
+mountpoint -q "$MOUNT_PATH" || mount "$BYID" "$MOUNT_PATH"
 
 ############################################
 # Write a marker to detect completion
