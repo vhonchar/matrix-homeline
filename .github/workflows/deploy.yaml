@@ -76,7 +76,7 @@ jobs:
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Wait for SSM to become available (max 5 minutes)
+      - name: Wait for user-data bootstrap to finish (via SSM marker file)
         shell: bash
         env:
           INSTANCE_ID: ${{ steps.tf_out.outputs.instance_id }}
@@ -85,23 +85,61 @@ jobs:
 
           aws ec2 wait instance-running --region "$AWS_REGION" --instance-ids "$INSTANCE_ID"
 
-          for i in {1..20}; do   # 20 × 15s = 5 minutes
-            STATUS=$(aws ssm describe-instance-information \
-              --region "$AWS_REGION" \
-              --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
-              --query "InstanceInformationList[0].PingStatus" \
-              --output text || true)
+          MARKER_FILE="/var/log/user-data-bootstrap.done"
 
-            if [[ "$STATUS" == "Online" ]]; then
-              echo "SSM is online for instance $INSTANCE_ID"
-              exit 0
+          echo "Waiting for user-data to complete (marker: $MARKER_FILE) on $INSTANCE_ID"
+
+          # Up to ~15 minutes (90 * 10s)
+          for i in {1..90}; do
+            # Try to run a tiny SSM command. If the instance isn't yet SSM-ready, send-command
+            # will error or the invocation will remain Pending/Delayed.
+            COMMAND_ID=$(aws ssm send-command \
+              --region "$AWS_REGION" \
+              --document-name "AWS-RunShellScript" \
+              --instance-ids "$INSTANCE_ID" \
+              --parameters "commands=test -s $MARKER_FILE" \
+              --comment "Wait for user-data marker file" \
+              --query "Command.CommandId" \
+              --output text 2>/dev/null || true)
+
+            if [[ -z "${COMMAND_ID:-}" || "$COMMAND_ID" == "None" ]]; then
+              echo "SSM not ready yet (poll $i/90)"
+              sleep 10
+              continue
             fi
 
-            echo "Waiting for SSM... (status=${STATUS:-none})"
-            sleep 15
+            # Poll this tiny command for completion (up to ~30s)
+            for j in {1..6}; do
+              STATUS=$(aws ssm get-command-invocation \
+                --region "$AWS_REGION" \
+                --command-id "$COMMAND_ID" \
+                --instance-id "$INSTANCE_ID" \
+                --query "Status" \
+                --output text 2>/dev/null || true)
+
+              case "$STATUS" in
+                Success)
+                  echo "User-data finished: marker exists and is non-empty."
+                  exit 0
+                  ;;
+                Failed|Cancelled|TimedOut)
+                  # Marker missing (or other failure). Keep waiting.
+                  break
+                  ;;
+                Pending|InProgress|Delayed|""|None)
+                  sleep 5
+                  ;;
+                *)
+                  sleep 5
+                  ;;
+              esac
+            done
+
+            echo "Waiting for marker... (poll $i/90)"
+            sleep 10
           done
 
-          echo "Timed out waiting for SSM to become available."
+          echo "Timed out waiting for user-data bootstrap marker file: $MARKER_FILE"
           exit 1
 
   deploy:

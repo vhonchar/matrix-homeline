@@ -28,5 +28,8 @@ resource "aws_volume_attachment" "matrix" {
   instance_id = aws_instance.matrix.id
 
   force_detach = true
-}
 
+  lifecycle {
+    replace_triggered_by = [aws_instance.matrix.id]
+  }
+}
