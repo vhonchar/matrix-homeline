@@ -16,27 +16,16 @@ variable "instance_name" {
   default     = "matrix-homeserver"
 }
 
-variable "repo_url" {
-  description = "Git repository URL to deploy from"
-  type        = string
-}
-
-variable "app_dir" {
-  description = "Directory to clone the repo into"
-  type        = string
-  default     = "/opt/matrix-homeline"
-}
-
 variable "ssm_param_path" {
   description = "Path to store the SSM parameter in"
   type        = string
   default     = "/matrix-homeline/prod"
 }
 
-variable "ssm_launcher_document_name" {
-  description = "SSM document name to use for update and launch deployment"
+variable "ssm_deploy_command" {
+  description = "SSM document name to use for deployment of this repo"
   type        = string
-  default     = "matrix-hotline-launcher"
+  default     = "matrix-homeline-deploy"
 }
 
 variable "matrix_volumes" {

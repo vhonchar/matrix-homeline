@@ -28,14 +28,12 @@ resource "aws_ssm_parameter" "turn_shared_secret" {
   # }
 }
 
-resource "aws_ssm_document" "matrix_homeline_launcher" {
-  name          = var.ssm_launcher_document_name
-  document_type = "Command"
+resource "aws_ssm_document" "matrix_homeline_deploy" {
+  name            = var.ssm_deploy_command
+  document_type   = "Command"
+  document_format = "YAML"
 
-  content = templatefile("ssm/git-update-and-deploy.json.tftpl", {
-    app_dir    = var.app_dir
-    repo_url   = var.repo_url
-    param_path = "${var.ssm_param_path}/"
-  })
+  content = <<-YAML
+${file("${path.module}/ssm/run-git-deploy.yaml")}
+YAML
 }
-

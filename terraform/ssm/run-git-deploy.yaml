@@ -1,0 +1,29 @@
+schemaVersion: "2.2"
+description: "Download deploy.sh from GitHub and execute it"
+parameters:
+  ScriptUrl:
+    type: String
+    default: "https://raw.githubusercontent.com/vhonchar/matrix-homeline/main/deploy.sh"
+  ScriptSha256:
+    type: String
+    default: ""  # optional: set to expected sha256 to enforce integrity
+mainSteps:
+  - name: DownloadScript
+    action: aws:downloadContent
+    inputs:
+      sourceType: "HTTP"
+      sourceInfo: |
+        {"url":"{{ ScriptUrl }}"}
+      destinationPath: "/tmp/matrix-homeline"
+  - name: RunScript
+    action: aws:runShellScript
+    inputs:
+      runCommand:
+        - set -euo pipefail
+        - cd /tmp/matrix-homeline
+        - chmod +x ./deploy.sh
+        - |
+          if [ -n "{{ ScriptSha256 }}" ]; then
+            echo "{{ ScriptSha256 }}  ./deploy.sh" | sha256sum -c -
+          fi
+        - sudo ./deploy.sh

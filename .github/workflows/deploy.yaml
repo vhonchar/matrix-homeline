@@ -14,7 +14,7 @@ env:
   AWS_REGION: eu-central-1
   SSM_ROLE_TO_ASSUME: arn:aws:iam::887016236946:role/github-terraform-matrix-homeline
   REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
-  SSM_DOCUMENT_NAME: matrix-homeline-launcher
+  SSM_DEPLOY_COMMAND: matrix-homeline-deploy
 
 jobs:
   terraform:
@@ -32,8 +32,7 @@ jobs:
         run: |
           echo "TF_IN_AUTOMATION=true" >> $GITHUB_ENV
           echo "TF_VAR_aws_region=${{ env.AWS_REGION }}" >> $GITHUB_ENV
-          echo "TF_VAR_repo_url=${{ env.REPO_URL }}" >> $GITHUB_ENV
-          echo "TF_VAR_ssm_launcher_document_name=${{ env.SSM_DOCUMENT_NAME }}" >> $GITHUB_ENV
+          echo "TF_VAR_ssm_deploy_command=${{ env.SSM_DEPLOY_COMMAND }}" >> $GITHUB_ENV
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -106,6 +105,7 @@ jobs:
           exit 1
 
   deploy:
+    name: Deploy via SSM (live progress)
     runs-on: ubuntu-latest
     needs: terraform
 
@@ -120,22 +120,63 @@ jobs:
           role-to-assume: ${{ env.SSM_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Send deploy command via SSM
-        id: ssm
+      # Optional but helpful when debugging / audit
+      - name: Print context
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Instance: $INSTANCE_ID"
+          echo "Ref: $REF"
+          echo "SSM Document: $SSM_DEPLOY_COMMAND"
+
+      - name: Compute ScriptUrl + sha256 (from repo + ref_name)
+        id: script
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "Instance: $INSTANCE_ID"
-          echo "Ref: $REF"
-          echo "SSM Document: $SSM_DOCUMENT_NAME"
+          # Compose raw GitHub URL from current repo + ref (branch or tag)
+          # Example: https://raw.githubusercontent.com/<owner>/<repo>/<ref>/deploy.sh
+          SCRIPT_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${REF}/deploy.sh"
 
+          echo "ScriptUrl: $SCRIPT_URL"
+
+          # Download once and compute sha256 locally (this is what we'll pass to SSM)
+          curl -fsSL "$SCRIPT_URL" -o /tmp/deploy.sh
+          SCRIPT_SHA256=$(sha256sum /tmp/deploy.sh | awk '{print $1}')
+
+          echo "script_url=$SCRIPT_URL" >> "$GITHUB_OUTPUT"
+          echo "script_sha256=$SCRIPT_SHA256" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Script Integrity"
+            echo ""
+            echo "| Key | Value |"
+            echo "|---|---|"
+            echo "| ScriptUrl | \`$SCRIPT_URL\` |"
+            echo "| ScriptSha256 | \`$SCRIPT_SHA256\` |"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Send deploy command via SSM
+        id: ssm
+        shell: bash
+        env:
+          SCRIPT_URL: ${{ steps.script.outputs.script_url }}
+          SCRIPT_SHA256: ${{ steps.script.outputs.script_sha256 }}
+        run: |
+          set -euo pipefail
+
+          echo "Using ScriptUrl: $SCRIPT_URL"
+          echo "Using ScriptSha256: $SCRIPT_SHA256"
+
+          # send-command does not wait; it returns a CommandId which we will track.
           COMMAND_ID=$(
             aws ssm send-command \
               --region "$AWS_REGION" \
-              --document-name "$SSM_DOCUMENT_NAME" \
+              --document-name "$SSM_DEPLOY_COMMAND" \
               --instance-ids "$INSTANCE_ID" \
-              --parameters "Ref=$REF" \
+              --parameters "ScriptUrl=$SCRIPT_URL,ScriptSha256=$SCRIPT_SHA256" \
               --comment "matrix-homeline deploy from GitHub Actions" \
               --query "Command.CommandId" \
               --output text
@@ -144,54 +185,132 @@ jobs:
           echo "command_id=$COMMAND_ID" >> "$GITHUB_OUTPUT"
           echo "SSM CommandId: $COMMAND_ID"
 
-      - name: Wait for deployment to finish + print logs on failure
+          {
+            echo "## SSM Deploy"
+            echo ""
+            echo "| Key | Value |"
+            echo "|---|---|"
+            echo "| Instance ID | \`$INSTANCE_ID\` |"
+            echo "| Ref | \`$REF\` |"
+            echo "| Document | \`$SSM_DEPLOY_COMMAND\` |"
+            echo "| ScriptUrl | \`$SCRIPT_URL\` |"
+            echo "| ScriptSha256 | \`$SCRIPT_SHA256\` |"
+            echo "| Command ID | \`$COMMAND_ID\` |"
+            echo ""
+            echo "Note: You can view the command in AWS Console → Systems Manager → Run Command."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Track SSM command progress (poll + live output)
         shell: bash
         env:
           COMMAND_ID: ${{ steps.ssm.outputs.command_id }}
         run: |
           set -euo pipefail
 
-          echo "Waiting for SSM command $COMMAND_ID..."
+          echo "Tracking SSM command $COMMAND_ID on instance $INSTANCE_ID"
 
-          for i in {1..60}; do  # ~10 minutes (60 * 10s)
+          # Keep track of how much output we've already printed, to avoid spam.
+          LAST_STDOUT_LEN=0
+          LAST_STDERR_LEN=0
+
+          # Up to ~20 minutes (120 * 10s)
+          for i in {1..120}; do
+            # Query status and response code (if any)
             STATUS=$(aws ssm get-command-invocation \
               --region "$AWS_REGION" \
               --command-id "$COMMAND_ID" \
               --instance-id "$INSTANCE_ID" \
               --query "Status" \
-              --output text || true)
+              --output text 2>/dev/null || true)
 
+            RESPONSE_CODE=$(aws ssm get-command-invocation \
+              --region "$AWS_REGION" \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$INSTANCE_ID" \
+              --query "ResponseCode" \
+              --output text 2>/dev/null || true)
+
+            STDOUT=$(aws ssm get-command-invocation \
+              --region "$AWS_REGION" \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$INSTANCE_ID" \
+              --query "StandardOutputContent" \
+              --output text 2>/dev/null || true)
+
+            STDERR=$(aws ssm get-command-invocation \
+              --region "$AWS_REGION" \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$INSTANCE_ID" \
+              --query "StandardErrorContent" \
+              --output text 2>/dev/null || true)
+
+            # Print only deltas (new content since last poll)
+            STDOUT_LEN=${#STDOUT}
+            STDERR_LEN=${#STDERR}
+
+            if (( STDOUT_LEN > LAST_STDOUT_LEN )); then
+              echo ""
+              echo "----- STDOUT (delta) -----"
+              printf "%s" "${STDOUT:LAST_STDOUT_LEN}"
+              echo ""
+              LAST_STDOUT_LEN=$STDOUT_LEN
+            fi
+
+            if (( STDERR_LEN > LAST_STDERR_LEN )); then
+              echo ""
+              echo "----- STDERR (delta) -----"
+              printf "%s" "${STDERR:LAST_STDERR_LEN}"
+              echo ""
+              LAST_STDERR_LEN=$STDERR_LEN
+            fi
+
+            # Status handling
             case "$STATUS" in
               Success)
-                echo "Deployment succeeded."
+                echo ""
+                echo "Deployment succeeded. ResponseCode=$RESPONSE_CODE"
+
+                {
+                  echo "## Deployment Result"
+                  echo "- Status: **Success**"
+                  echo "- ResponseCode: \`$RESPONSE_CODE\`"
+                } >> "$GITHUB_STEP_SUMMARY"
+
                 exit 0
                 ;;
+
               Failed|Cancelled|TimedOut)
-                echo "Deployment finished with status: $STATUS"
                 echo ""
-                echo "----- STDOUT -----"
-                aws ssm get-command-invocation \
-                  --region "$AWS_REGION" \
-                  --command-id "$COMMAND_ID" \
-                  --instance-id "$INSTANCE_ID" \
-                  --query "StandardOutputContent" \
-                  --output text || true
+                echo "Deployment finished with status: $STATUS (ResponseCode=$RESPONSE_CODE)"
                 echo ""
-                echo "----- STDERR -----"
-                aws ssm get-command-invocation \
-                  --region "$AWS_REGION" \
-                  --command-id "$COMMAND_ID" \
-                  --instance-id "$INSTANCE_ID" \
-                  --query "StandardErrorContent" \
-                  --output text || true
+                echo "----- STDOUT (full) -----"
+                echo "$STDOUT"
+                echo ""
+                echo "----- STDERR (full) -----"
+                echo "$STDERR"
+
+                {
+                  echo "## Deployment Result"
+                  echo "- Status: **$STATUS**"
+                  echo "- ResponseCode: \`$RESPONSE_CODE\`"
+                  echo ""
+                  echo "### STDERR (truncated if large)"
+                  echo "\`\`\`"
+                  # Guard summary size; keep last 4000 chars.
+                  echo "${STDERR: -4000}"
+                  echo "\`\`\`"
+                } >> "$GITHUB_STEP_SUMMARY"
+
                 exit 1
                 ;;
-              InProgress|Pending|Delayed|"")
-                echo "Status: ${STATUS:-none} (poll $i/60)"
+
+              InProgress|Pending|Delayed|"" )
+                echo "Status: ${STATUS:-none} (poll $i/120)"
                 sleep 10
                 ;;
+
               *)
-                echo "Status: $STATUS (poll $i/60)"
+                echo "Status: $STATUS (poll $i/120)"
                 sleep 10
                 ;;
             esac
