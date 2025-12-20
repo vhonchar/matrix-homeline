@@ -170,20 +170,23 @@ jobs:
           echo "Using ScriptUrl: $SCRIPT_URL"
           echo "Using ScriptSha256: $SCRIPT_SHA256"
 
-          # send-command does not wait; it returns a CommandId which we will track.
-          COMMAND_ID=$(
-            aws ssm send-command \
-              --region "$AWS_REGION" \
-              --document-name "$SSM_DEPLOY_COMMAND" \
-              --instance-ids "$INSTANCE_ID" \
-              --parameters "ScriptUrl=$SCRIPT_URL,ScriptSha256=$SCRIPT_SHA256" \
-              --comment "matrix-homeline deploy from GitHub Actions" \
-              --query "Command.CommandId" \
-              --output text
-          )
+          COMMAND_ID=$(aws ssm send-command \
+            --region "$AWS_REGION" \
+            --document-name "$SSM_DEPLOY_COMMAND" \
+            --instance-ids "$INSTANCE_ID" \
+            --parameters "ScriptUrl=$SCRIPT_URL,ScriptSha256=$SCRIPT_SHA256" \
+            --comment "matrix-homeline deploy from GitHub Actions" \
+            --query "Command.CommandId" \
+            --output text)
+
+          # AWS Console deep link (Run Command → Command details)
+          CONSOLE_URL="https://${AWS_REGION}.console.aws.amazon.com/systems-manager/run-command/${COMMAND_ID}?region=${AWS_REGION}"
 
           echo "command_id=$COMMAND_ID" >> "$GITHUB_OUTPUT"
+          echo "console_url=$CONSOLE_URL" >> "$GITHUB_OUTPUT"
+
           echo "SSM CommandId: $COMMAND_ID"
+          echo "Console: $CONSOLE_URL"
 
           {
             echo "## SSM Deploy"
@@ -196,125 +199,74 @@ jobs:
             echo "| ScriptUrl | \`$SCRIPT_URL\` |"
             echo "| ScriptSha256 | \`$SCRIPT_SHA256\` |"
             echo "| Command ID | \`$COMMAND_ID\` |"
+            echo "| Console Link | $CONSOLE_URL |"
             echo ""
-            echo "Note: You can view the command in AWS Console → Systems Manager → Run Command."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Track SSM command progress (poll + live output)
+      - name: Track SSM command status
         shell: bash
         env:
           COMMAND_ID: ${{ steps.ssm.outputs.command_id }}
+          CONSOLE_URL: ${{ steps.ssm.outputs.console_url }}
         run: |
           set -euo pipefail
 
           echo "Tracking SSM command $COMMAND_ID on instance $INSTANCE_ID"
+          echo "Console: $CONSOLE_URL"
 
-          # Keep track of how much output we've already printed, to avoid spam.
-          LAST_STDOUT_LEN=0
-          LAST_STDERR_LEN=0
-
-          # Up to ~20 minutes (120 * 10s)
-          for i in {1..120}; do
-            # Query status and response code (if any)
-            STATUS=$(aws ssm get-command-invocation \
+          # Poll list-commands for the overall command status.
+          # Note: Run Command APIs are eventually consistent; initial polls may return empty.
+          for i in {1..120}; do  # ~20 minutes (120 * 10s)
+            STATUS=$(aws ssm list-commands \
               --region "$AWS_REGION" \
               --command-id "$COMMAND_ID" \
-              --instance-id "$INSTANCE_ID" \
-              --query "Status" \
+              --query "Commands[0].Status" \
               --output text 2>/dev/null || true)
 
-            RESPONSE_CODE=$(aws ssm get-command-invocation \
-              --region "$AWS_REGION" \
-              --command-id "$COMMAND_ID" \
-              --instance-id "$INSTANCE_ID" \
-              --query "ResponseCode" \
-              --output text 2>/dev/null || true)
-
-            STDOUT=$(aws ssm get-command-invocation \
-              --region "$AWS_REGION" \
-              --command-id "$COMMAND_ID" \
-              --instance-id "$INSTANCE_ID" \
-              --query "StandardOutputContent" \
-              --output text 2>/dev/null || true)
-
-            STDERR=$(aws ssm get-command-invocation \
-              --region "$AWS_REGION" \
-              --command-id "$COMMAND_ID" \
-              --instance-id "$INSTANCE_ID" \
-              --query "StandardErrorContent" \
-              --output text 2>/dev/null || true)
-
-            # Print only deltas (new content since last poll)
-            STDOUT_LEN=${#STDOUT}
-            STDERR_LEN=${#STDERR}
-
-            if (( STDOUT_LEN > LAST_STDOUT_LEN )); then
-              echo ""
-              echo "----- STDOUT (delta) -----"
-              printf "%s" "${STDOUT:LAST_STDOUT_LEN}"
-              echo ""
-              LAST_STDOUT_LEN=$STDOUT_LEN
+            if [[ -z "${STATUS:-}" || "$STATUS" == "None" ]]; then
+              echo "Status: none (poll $i/120)"
+              sleep 10
+              continue
             fi
 
-            if (( STDERR_LEN > LAST_STDERR_LEN )); then
-              echo ""
-              echo "----- STDERR (delta) -----"
-              printf "%s" "${STDERR:LAST_STDERR_LEN}"
-              echo ""
-              LAST_STDERR_LEN=$STDERR_LEN
-            fi
+            echo "Status: $STATUS (poll $i/120)"
 
-            # Status handling
             case "$STATUS" in
               Success)
-                echo ""
-                echo "Deployment succeeded. ResponseCode=$RESPONSE_CODE"
-
+                echo "Deployment succeeded."
+                echo "Console: $CONSOLE_URL"
                 {
                   echo "## Deployment Result"
                   echo "- Status: **Success**"
-                  echo "- ResponseCode: \`$RESPONSE_CODE\`"
+                  echo "- Console: $CONSOLE_URL"
                 } >> "$GITHUB_STEP_SUMMARY"
-
                 exit 0
                 ;;
-
               Failed|Cancelled|TimedOut)
-                echo ""
-                echo "Deployment finished with status: $STATUS (ResponseCode=$RESPONSE_CODE)"
-                echo ""
-                echo "----- STDOUT (full) -----"
-                echo "$STDOUT"
-                echo ""
-                echo "----- STDERR (full) -----"
-                echo "$STDERR"
-
+                echo "Deployment finished with status: $STATUS"
+                echo "Console: $CONSOLE_URL"
                 {
                   echo "## Deployment Result"
                   echo "- Status: **$STATUS**"
-                  echo "- ResponseCode: \`$RESPONSE_CODE\`"
-                  echo ""
-                  echo "### STDERR (truncated if large)"
-                  echo "\`\`\`"
-                  # Guard summary size; keep last 4000 chars.
-                  echo "${STDERR: -4000}"
-                  echo "\`\`\`"
+                  echo "- Console: $CONSOLE_URL"
                 } >> "$GITHUB_STEP_SUMMARY"
-
                 exit 1
                 ;;
-
-              InProgress|Pending|Delayed|"" )
-                echo "Status: ${STATUS:-none} (poll $i/120)"
+              Pending|InProgress|Delayed)
                 sleep 10
                 ;;
-
               *)
-                echo "Status: $STATUS (poll $i/120)"
+                # Unknown status; keep polling.
                 sleep 10
                 ;;
             esac
           done
 
           echo "Timed out waiting for deployment to finish."
+          echo "Console: $CONSOLE_URL"
+          {
+            echo "## Deployment Result"
+            echo "- Status: **TimedOut (polling)**"
+            echo "- Console: $CONSOLE_URL"
+          } >> "$GITHUB_STEP_SUMMARY"
           exit 1
