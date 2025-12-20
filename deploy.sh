@@ -48,11 +48,18 @@ aws ssm get-parameters-by-path \
   --output text \
 | awk -F'\t' '{
     name=$1; val=$2;
-    gsub("^.*/", "", name);
+
+    # Normalize key name
+    sub("^.*/", "", name);
     gsub("-", "_", name);
-    gsub("\\\\.", "_", name);   # literal dot
+    gsub("\\.", "_", name);
     name=toupper(name);
-    printf "%s=%s\\n", name, val
+
+    # Quote/escape value for dotenv compatibility (Docker Compose .env)
+    gsub(/\\/, "\\\\", val);
+    gsub(/\"/, "\\\\\"", val);
+
+    printf "%s=\"%s\"\n", name, val
   }' >> "$ENV_FILE"
 
 chmod 600 "$ENV_FILE"
