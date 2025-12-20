@@ -68,40 +68,44 @@ systemctl --no-pager status snap.amazon-ssm-agent.amazon-ssm-agent || true
 # Mount and format EBS volumes
 ############################################
 
-declare -A MOUNTS
-${mounts_bash}
+VOLUME_ID='${volume_id}'
+MOUNT_PATH='${mount_path}'
+LABEL='${label}'
+FSTYPE='${fstype}'
 
-mkdir -p /srv/matrix
+vol_nodash="$${VOLUME_ID//-/}"
+BYID="/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$${vol_nodash}"
 
-echo "Waiting for EBS volumes to attach..."
+wait_for() {
+  local dev="$1" timeout_s="$2" start now
+  start="$(date +%s)"
+  while true; do
+    [ -b "$dev" ] && return 0
+    now="$(date +%s)"
+    [ $((now - start)) -ge "$timeout_s" ] && echo "Timed out waiting for $dev" >&2 && return 1
+    sleep 2
+  done
+}
 
-for DEV in "$${!MOUNTS[@]}"; do
-  echo "Waiting for device $DEV ..."
-  timeout 300 bash -c "
-    until [ -b \"$DEV\" ] || [ -b \"\$(readlink -f $DEV 2>/dev/null)\" ]; do
-      sleep 2
-    done
-  "
-done
+mkdir -p "$MOUNT_PATH"
 
-for DEV in "$${!MOUNTS[@]}"; do
-  MP="$${MOUNTS[$DEV]}"
+echo "Waiting for $BYID..."
+wait_for "$BYID" 300
 
-  # Resolve real device (Nitro instances often remap /dev/sdX -> /dev/nvme*n1)
-  REAL_DEV="$(readlink -f "$DEV" 2>/dev/null || echo "$DEV")"
+if ! blkid "$BYID" >/dev/null 2>&1; then
+  echo "No filesystem; creating $FSTYPE with label $LABEL"
+  case "$FSTYPE" in
+    ext4) mkfs.ext4 -F -L "$LABEL" "$BYID" ;;
+    xfs)  mkfs.xfs  -f -L "$LABEL" "$BYID" ;;
+    *)    echo "Unsupported fstype: $FSTYPE" >&2; exit 1 ;;
+  esac
+fi
 
-  mkdir -p "$MP"
+if ! grep -qE "^LABEL=$${LABEL}[[:space:]]" /etc/fstab; then
+  echo "LABEL=$LABEL $MOUNT_PATH $FSTYPE defaults,nofail 0 2" >> /etc/fstab
+fi
 
-  # Create filesystem if missing
-  if ! blkid "$REAL_DEV" >/dev/null 2>&1; then
-    mkfs.ext4 -F "$REAL_DEV"
-  fi
-
-  UUID="$(blkid -s UUID -o value "$REAL_DEV")"
-  grep -q "UUID=$UUID" /etc/fstab || echo "UUID=$UUID $MP ext4 defaults,nofail 0 2" >> /etc/fstab
-done
-
-mount -a
+mountpoint -q "$MOUNT_PATH" || mount "LABEL=$LABEL" "$MOUNT_PATH"
 
 ############################################
 # Write a marker to detect completion

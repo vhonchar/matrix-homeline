@@ -28,18 +28,15 @@ variable "ssm_deploy_command" {
   default     = "matrix-homeline-deploy"
 }
 
-variable "matrix_volumes" {
-  description = "EBS volumes for matrix homeline"
-  type = map(object({
-    size_gb     = number
-    device_name = string # e.g. /dev/sdf, /dev/sdg, /dev/sdh
-    mount_path  = string # used by user_data
-  }))
-
+variable "matrix_data_volume" {
+  type = object({
+    size_gb    = number
+    device_name = string
+    mount_path = string
+  })
   default = {
-    postgres = { size_gb = 20, device_name = "/dev/sdf", mount_path = "/srv/matrix/postgres" }
-    synapse  = { size_gb = 50, device_name = "/dev/sdg", mount_path = "/srv/matrix/synapse" }
-    le       = { size_gb = 5, device_name = "/dev/sdh", mount_path = "/srv/matrix/letsencrypt" }
+    size_gb    = 100
+    device_name = "/dev/sdf"
+    mount_path = "/srv/matrix"
   }
 }
-

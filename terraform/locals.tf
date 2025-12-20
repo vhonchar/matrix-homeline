@@ -27,12 +27,11 @@ data "aws_subnets" "default" {
 
 locals {
   selected_subnet_id = sort(data.aws_subnets.default.ids)[0]
-  mounts_bash = join("\n", [
-    for _, v in var.matrix_volumes :
-    "MOUNTS[\"${v.device_name}\"]=\"${v.mount_path}\""
-  ])
 
   user_data = templatefile("${path.module}/user_data.sh.tftpl", {
-    mounts_bash = local.mounts_bash
+    volume_id  = aws_ebs_volume.matrix_data.id
+    mount_path = var.matrix_data_volume.mount_path
+    label      = "matrix_data"
+    fstype     = "ext4"
   })
 }
