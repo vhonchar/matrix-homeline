@@ -1,0 +1,13 @@
+services:
+  envdump:
+    image: alpine:3.20
+    container_name: matrix-envdump
+    restart: unless-stopped
+    command: >
+      sh -lc '
+        echo "=== envdump started: $(date -u +%Y-%m-%dT%H:%M:%SZ) ===";
+        echo "--- selected vars ---";
+        env | sort | sed -n "1,200p";
+        echo "=== sleeping ===";
+        sleep 3600
+      '
