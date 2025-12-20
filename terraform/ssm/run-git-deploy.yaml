@@ -19,11 +19,15 @@ mainSteps:
     action: aws:runShellScript
     inputs:
       runCommand:
-        - set -euo pipefail
-        - cd /tmp/matrix-homeline
-        - chmod +x ./deploy.sh
         - |
-          if [ -n "{{ ScriptSha256 }}" ]; then
-            echo "{{ ScriptSha256 }}  ./deploy.sh" | sha256sum -c -
-          fi
-        - sudo ./deploy.sh
+          bash -lc '
+            set -euo pipefail
+            cd /tmp/matrix-homeline
+            chmod +x ./deploy.sh
+  
+            if [[ -n "{{ ScriptSha256 }}" ]]; then
+              echo "{{ ScriptSha256 }}  ./deploy.sh" | sha256sum -c -
+            fi
+  
+            sudo ./deploy.sh
+          '
