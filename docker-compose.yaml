@@ -3,6 +3,8 @@ services:
     image: alpine:3.20
     container_name: matrix-envdump
     restart: unless-stopped
+    environment:
+      TEST_VAR: ${SYNAPSE_DB_PASSWORD}
     command: >
       sh -lc '
         echo "=== envdump started: $(date -u +%Y-%m-%dT%H:%M:%SZ) ===";
