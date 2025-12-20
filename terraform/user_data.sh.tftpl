@@ -52,9 +52,6 @@ systemctl start docker
 if id "ubuntu" &>/dev/null; then
   usermod -aG docker ubuntu
 fi
-if id "ssm-user" &>/dev/null; then
-  usermod -aG docker ssm-user
-fi
 
 usermod -aG docker ssm-user
 

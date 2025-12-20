@@ -29,5 +29,5 @@ mainSteps:
               echo "{{ ScriptSha256 }}  ./deploy.sh" | sha256sum -c -
             fi
   
-            ./deploy.sh
+            sudo ./deploy.sh
           '
