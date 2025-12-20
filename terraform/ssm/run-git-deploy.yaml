@@ -14,7 +14,7 @@ mainSteps:
       sourceType: "HTTP"
       sourceInfo: |
         {"url":"{{ ScriptUrl }}"}
-      destinationPath: "/tmp/matrix-homeline"
+      destinationPath: "/tmp/deploy.sh"
   - name: RunScript
     action: aws:runShellScript
     inputs:
@@ -22,12 +22,12 @@ mainSteps:
         - |
           bash -lc '
             set -euo pipefail
-            cd /tmp/matrix-homeline
+            cd /tmp
             chmod +x ./deploy.sh
   
             if [[ -n "{{ ScriptSha256 }}" ]]; then
               echo "{{ ScriptSha256 }}  ./deploy.sh" | sha256sum -c -
             fi
   
-            sudo ./deploy.sh
+            ./deploy.sh
           '
