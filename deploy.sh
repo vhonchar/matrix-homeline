@@ -46,14 +46,13 @@ aws ssm get-parameters-by-path \
   --with-decryption \
   --query "Parameters[*].[Name,Value]" \
   --output text \
-| awk -F'	' '{
+| awk -F'\t' '{
     name=$1; val=$2;
     gsub("^.*/", "", name);
     gsub("-", "_", name);
-    gsub("\.", "_", name);
+    gsub("\\\\.", "_", name);   # literal dot
     name=toupper(name);
-    printf "%s=%s
-", name, val
+    printf "%s=%s\\n", name, val
   }' >> "$ENV_FILE"
 
 chmod 600 "$ENV_FILE"
