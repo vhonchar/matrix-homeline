@@ -1,5 +1,3 @@
-version: "3.9"
-
 name: matrix
 
 # Bind all persistent state to a host path (mount this path onto your EBS volume).

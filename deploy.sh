@@ -98,7 +98,7 @@ done
 umask 077
 envsubst '${POSTGRES_PASSWORD} ${MACAROON_SECRET_KEY} ${REGISTRATION_SHARED_SECRET} ${TURN_SHARED_SECRET}' \
   < "$TEMPLATE" > "$OUTFILE"
-chmod 600 "$OUTFILE"
+chmod 644 "$OUTFILE"
 
 # --- Launch docker compose ---
 COMPOSE_DIR="$APP_DIR"
