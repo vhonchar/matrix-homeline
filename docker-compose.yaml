@@ -81,6 +81,9 @@ services:
       retries: 20
     expose:
       - "8008"
+    ports:
+      - "8008:8008/tcp"
+      - "8008:8008/udp"
 
   element:
     image: vectorim/element-web:latest
@@ -96,6 +99,9 @@ services:
       interval: 30s
       timeout: 5s
       retries: 10
+    ports:
+      - "80:80/tcp"
+      - "80:80/udp"
 
   coturn:
     image: coturn/coturn:latest
