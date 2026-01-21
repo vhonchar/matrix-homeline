@@ -1,12 +1,12 @@
 {
   "default_server_config": {
     "m.homeserver": {
-      "base_url": "https://matrix-hotline.chilllab.dev",
+      "base_url": "http://ec2-3-70-9-45.eu-central-1.compute.amazonaws.com",
       "server_name": "matrix-hotline.chilllab.dev"
     }
   },
   "disable_custom_urls": false,
   "disable_guests": true,
-  "brand": "Element",
+  "brand": "Matrix Hotline",
   "default_theme": "light"
 }
