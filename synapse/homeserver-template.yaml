@@ -12,7 +12,7 @@ pid_file: /data/homeserver.pid
 media_store_path: /data/media_store
 uploads_path: /data/uploads
 tmp_directory: /data/tmp
-log_config: "/data/matrix-homeline.chilllab.dev.log.config"
+log_config: "/data/log-config.yaml"
 
 # Generated/managed runtime keys live on EBS (/data)
 signing_key_path: "/data/matrix-homeline.chilllab.dev.signing.key"

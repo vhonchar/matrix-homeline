@@ -72,6 +72,7 @@ services:
     volumes:
       - /srv/matrix/synapse:/data
       - ./synapse/homeserver.yaml:/data/homeserver.yaml:ro
+      - ./synapse/log-config.yaml:/data/log-config.yaml:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8008/health || exit 1"]
       interval: 15s
