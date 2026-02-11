@@ -4,7 +4,7 @@
 server_name: "matrix-homeline.chilllab.dev"
 
 # What clients should use to reach this homeserver (must match your public URL).
-public_baseurl: "http://ec2-3-70-9-45.eu-central-1.compute.amazonaws.com"
+public_baseurl: "https://matrix-homeline.chilllab.dev"
 
 pid_file: /data/homeserver.pid
 

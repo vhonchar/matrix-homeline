@@ -36,8 +36,8 @@ fi
 
 # --- Render .env from SSM (tight perms) ---
 umask 077
-ENV_FILE="$APP_DIR/.env"
-: > "$ENV_FILE"
+SSM_ENV_FILE="$APP_DIR/ssm.env"
+: > "$SSM_ENV_FILE"
 
 aws ssm get-parameters-by-path \
   --region "$AWS_REGION" \
@@ -60,9 +60,9 @@ aws ssm get-parameters-by-path \
     gsub(/"/, "\\\"", val);
 
     printf "%s=\"%s\"\n", name, val
-  }' >> "$ENV_FILE"
+  }' >> "$SSM_ENV_FILE"
 
-chmod 600 "$ENV_FILE"
+chmod 600 "$SSM_ENV_FILE"
 
 # --- Replace secrets in synapse/homeserver.yaml ---
 
@@ -71,7 +71,7 @@ set -a
 # Disable nounset only for sourcing, then restore.
 set +u
 # shellcheck disable=SC1090
-source "$ENV_FILE"
+source "$SSM_ENV_FILE"
 set -u
 set +a
 
@@ -104,6 +104,6 @@ chmod 644 "$OUTFILE"
 COMPOSE_DIR="$APP_DIR"
 cd "$COMPOSE_DIR"
 
-docker compose --env-file "$ENV_FILE" pull --quiet
-docker compose --env-file "$ENV_FILE" up -d --remove-orphans
+docker compose --env-file "$SSM_ENV_FILE" --env-file ".env" pull --quiet
+docker compose --env-file "$SSM_ENV_FILE" --env-file ".env" up -d --remove-orphans
 docker compose ps

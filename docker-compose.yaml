@@ -1,20 +1,5 @@
 name: matrix
 
-# Bind all persistent state to a host path (mount this path onto your EBS volume).
-# Example (on the host):
-#   EBS mounted at /mnt/matrix-data
-#   export MATRIX_DATA_DIR=/mnt/matrix-data
-#
-# Directory layout created/used by this compose:
-#   ${MATRIX_DATA_DIR}/
-#     postgres/
-#     synapse/
-#     redis/
-#     coturn/
-#
-# NOTE: If you are using your existing deploy.sh flow, set MATRIX_DATA_DIR in your .env
-# (or export it) to point at the EBS-backed mount path.
-
 networks:
   matrix:
     name: matrix
@@ -64,8 +49,7 @@ services:
     restart: unless-stopped
     networks: [matrix]
     environment:
-      # TODO: domain
-      SYNAPSE_SERVER_NAME: "matrix-homeline.chilllab.dev"
+      SYNAPSE_SERVER_NAME: ${MATRIX_FQDN}
       SYNAPSE_REPORT_STATS: "no"
       SYNAPSE_CONFIG_PATH: /data/homeserver.yaml
       UID: "991"
@@ -132,3 +116,42 @@ services:
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
+
+  acme:
+    image: neilpang/acme.sh:latest
+    container_name: matrix-acme
+    restart: unless-stopped
+    networks: [matrix]
+    environment:
+      PORKBUN_API_KEY: ${PORKBUN_API_KEY}
+      PORKBUN_SECRET_API_KEY: ${PORKBUN_SECRET_API_KEY}
+      ACME_EMAIL: ${ACME_EMAIL}
+      ACME_PRIMARY_DOMAIN: ${MATRIX_DOMAIN}
+      ACME_SAN_DOMAIN: ${MATRIX_FQDN}
+    volumes:
+      - ./nginx/ssl:/certs
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: >
+      sh -c "apk add --no-cache docker-cli &&
+      acme.sh --register-account -m \"$${ACME_EMAIL}\" --home /acme &&
+      acme.sh --issue --dns dns_porkbun -d \"$${ACME_PRIMARY_DOMAIN}\" -d \"$${ACME_SAN_DOMAIN}\" --keylength ec-256 --home /acme &&
+      acme.sh --install-cert -d \"$${ACME_PRIMARY_DOMAIN}\" --ecc --home /acme
+      --cert-file /certs/fullchain.pem --key-file /certs/privkey.pem
+      --reloadcmd 'docker kill -s HUP matrix-nginx' &&
+      crond -f -l 8"
+
+  ddns-updater:
+    image: qmcgaw/ddns-updater:latest
+    container_name: matrix-ddns-updater
+    restart: unless-stopped
+    networks: [matrix]
+    environment:
+      PERIOD: 5m
+      UPDATE_COOLDOWN: 5m
+      LOG_LEVEL: info
+      DNS_PROVIDERS: porkbun
+      PORKBUN_API_KEY: ${PORKBUN_API_KEY}
+      PORKBUN_SECRET_API_KEY: ${PORKBUN_SECRET_API_KEY}
+      DOMAINS: ${DDNS_DOMAINS}
+    volumes:
+      - /srv/matrix/ddns-updater:/updater/data

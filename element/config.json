@@ -1,7 +1,7 @@
 {
   "default_server_config": {
     "m.homeserver": {
-      "base_url": "http://ec2-3-70-9-45.eu-central-1.compute.amazonaws.com",
+      "base_url": "https://matrix-homeline.chilllab.dev",
       "server_name": "matrix-homeline.chilllab.dev"
     }
   },

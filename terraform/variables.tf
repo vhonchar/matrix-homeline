@@ -30,13 +30,28 @@ variable "ssm_deploy_command" {
 
 variable "matrix_data_volume" {
   type = object({
-    size_gb    = number
+    size_gb     = number
     device_name = string
-    mount_path = string
+    mount_path  = string
   })
   default = {
-    size_gb    = 100
+    size_gb     = 100
     device_name = "/dev/sdf"
-    mount_path = "/srv/matrix"
+    mount_path  = "/srv/matrix"
   }
+}
+
+variable "porkbun_api_key" {
+  description = "Porkbun API key to store in SSM"
+  type        = string
+}
+
+variable "porkbun_api_secrete_key" {
+  description = "Porkbun API Secrete key to store in SSM"
+  type        = string
+}
+
+variable "acme_email" {
+  description = "Email to use in acme"
+  type        = string
 }

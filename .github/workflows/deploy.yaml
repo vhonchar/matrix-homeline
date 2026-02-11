@@ -15,6 +15,9 @@ env:
   SSM_ROLE_TO_ASSUME: arn:aws:iam::887016236946:role/github-terraform-matrix-homeline
   REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
   SSM_DEPLOY_COMMAND: matrix-homeline-deploy
+  PORKBUN_API_KEY: ${{ secrets.PORKBUN_API_KEY }}
+  PORKBUN_SECRET_API_KEY: ${{ secrets.PORKBUN_SECRET_API_KEY }}
+  ACME_EMAIL: ${{ secrets.ACME_EMAIL }}
 
 jobs:
   terraform:
@@ -33,6 +36,9 @@ jobs:
           echo "TF_IN_AUTOMATION=true" >> $GITHUB_ENV
           echo "TF_VAR_aws_region=${{ env.AWS_REGION }}" >> $GITHUB_ENV
           echo "TF_VAR_ssm_deploy_command=${{ env.SSM_DEPLOY_COMMAND }}" >> $GITHUB_ENV
+          echo "TF_VAR_porkbun_api_key=${{ env.PORKBUN_API_KEY }}" >> $GITHUB_ENV
+          echo "TF_VAR_porkbun_api_secrete_key=${{ env.PORKBUN_SECRET_API_KEY }}" >> $GITHUB_ENV
+          echo "TF_VAR_acme_email=${{ env.ACME_EMAIL }}" >> $GITHUB_ENV
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
