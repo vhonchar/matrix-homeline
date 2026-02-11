@@ -1,20 +1,5 @@
 name: matrix
 
-# Bind all persistent state to a host path (mount this path onto your EBS volume).
-# Example (on the host):
-#   EBS mounted at /mnt/matrix-data
-#   export MATRIX_DATA_DIR=/mnt/matrix-data
-#
-# Directory layout created/used by this compose:
-#   ${MATRIX_DATA_DIR}/
-#     postgres/
-#     synapse/
-#     redis/
-#     coturn/
-#
-# NOTE: If you are using your existing deploy.sh flow, set MATRIX_DATA_DIR in your .env
-# (or export it) to point at the EBS-backed mount path.
-
 networks:
   matrix:
     name: matrix
@@ -141,8 +126,8 @@ services:
       PORKBUN_API_KEY: ${PORKBUN_API_KEY}
       PORKBUN_SECRET_API_KEY: ${PORKBUN_SECRET_API_KEY}
       ACME_EMAIL: ${ACME_EMAIL}
-      ACME_PRIMARY_DOMAIN: ${MATRIX_DOMAIN}
-      ACME_SAN_DOMAIN: ${MATRIX_FQDN}
+      ACME_PRIMARY_DOMAIN: matrix-homeline.chilllab.dev
+      ACME_SAN_DOMAIN: matrix-homeline.chilllab.dev
     volumes:
       - ./nginx/ssl:/certs
       - /var/run/docker.sock:/var/run/docker.sock
@@ -167,6 +152,6 @@ services:
       DNS_PROVIDERS: porkbun
       PORKBUN_API_KEY: ${PORKBUN_API_KEY}
       PORKBUN_SECRET_API_KEY: ${PORKBUN_SECRET_API_KEY}
-      DOMAINS: ${DDNS_DOMAINS}
+      DOMAINS: matrix-homeline.chilllab.dev
     volumes:
       - /srv/matrix/ddns-updater:/updater/data
