@@ -8,6 +8,7 @@ locals {
   static_secrets = {
     PORKBUN_API_KEY         = var.porkbun_api_key
     PORKBUN_API_SECRETE_KEY = var.porkbun_api_secrete_key
+    ACME_EMAIL              = var.acme_email
   }
 }
 

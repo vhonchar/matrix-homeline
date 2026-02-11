@@ -50,3 +50,8 @@ variable "porkbun_api_secrete_key" {
   description = "Porkbun API Secrete key to store in SSM"
   type        = string
 }
+
+variable "acme_email" {
+  description = "Email to use in acme"
+  type        = string
+}
