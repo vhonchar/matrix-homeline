@@ -126,8 +126,8 @@ services:
       PORKBUN_API_KEY: ${PORKBUN_API_KEY}
       PORKBUN_SECRET_API_KEY: ${PORKBUN_SECRET_API_KEY}
       ACME_EMAIL: ${ACME_EMAIL}
-      ACME_PRIMARY_DOMAIN: matrix-homeline.chilllab.dev
-      ACME_SAN_DOMAIN: matrix-homeline.chilllab.dev
+      ACME_PRIMARY_DOMAIN: ${MATRIX_DOMAIN}
+      ACME_SAN_DOMAIN: ${MATRIX_FQDN}
     volumes:
       - ./nginx/ssl:/certs
       - /var/run/docker.sock:/var/run/docker.sock
@@ -152,6 +152,6 @@ services:
       DNS_PROVIDERS: porkbun
       PORKBUN_API_KEY: ${PORKBUN_API_KEY}
       PORKBUN_SECRET_API_KEY: ${PORKBUN_SECRET_API_KEY}
-      DOMAINS: matrix-homeline.chilllab.dev
+      DOMAINS: ${DDNS_DOMAINS}
     volumes:
       - /srv/matrix/ddns-updater:/updater/data

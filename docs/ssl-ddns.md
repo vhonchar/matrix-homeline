@@ -17,18 +17,24 @@ Create a `.env` file next to `docker-compose.yaml` with the following values:
 MATRIX_DOMAIN=example.com
 MATRIX_FQDN=matrix.example.com
 
+# Comma-separated list of DNS records to keep updated.
+DDNS_DOMAINS=matrix.example.com
+```
+
+## 3) Configure secrets in GitHub
+
+Create secrets in GitHub
+
+```
 # Let's Encrypt registration email.
 ACME_EMAIL=you@example.com
 
 # Porkbun API credentials used by both ACME and DDNS.
 PORKBUN_API_KEY=pk1_...
 PORKBUN_SECRET_API_KEY=sk1_...
-
-# Comma-separated list of DNS records to keep updated.
-DDNS_DOMAINS=matrix.example.com
 ```
 
-## 3) Bring the stack up
+## 4) Bring the stack up
 
 ```
 docker compose up -d
