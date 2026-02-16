@@ -105,5 +105,5 @@ COMPOSE_DIR="$APP_DIR"
 cd "$COMPOSE_DIR"
 
 docker compose --env-file "$SSM_ENV_FILE" --env-file ".env" pull --quiet
-docker compose --env-file "$SSM_ENV_FILE" --env-file ".env" up -d --remove-orphans
+docker compose --env-file "$SSM_ENV_FILE" --env-file ".env" up -d --remove-orphans --force-recreate
 docker compose ps
