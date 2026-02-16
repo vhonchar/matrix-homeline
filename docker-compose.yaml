@@ -178,7 +178,9 @@ services:
             "provider":"porkbun",
             "domain":"${DDNS_DOMAINS}",
             "api_key":"${PORKBUN_API_KEY}",
-            "secret_api_key":"${PORKBUN_SECRET_API_KEY}"
+            "secret_api_key":"${PORKBUN_API_SECRETE_KEY}",
+            "ip_version": "ipv4",
+            "ipv6_suffix": ""
           }
         ]}
     volumes:
