@@ -130,7 +130,7 @@ services:
       ACME_SAN_DOMAIN: ${MATRIX_FQDN}
     volumes:
       - ./nginx/ssl:/certs
-      - /var/run/docker.sock:/var/run/docker.sock
+      # - /var/run/docker.sock:/var/run/docker.sock
     command: >
       sh -c "apk add --no-cache docker-cli &&
       acme.sh --register-account -m \"$${ACME_EMAIL}\" --home /acme &&
