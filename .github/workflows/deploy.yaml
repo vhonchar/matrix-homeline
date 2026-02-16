@@ -57,11 +57,11 @@ jobs:
 
       - name: Terraform Plan
         working-directory: ./terraform
-        run: terraform plan -input=false -replace='aws_instance.matrix'
+        run: terraform plan -input=false
 
       - name: Terraform Apply
         working-directory: ./terraform
-        run: terraform apply -input=false -auto-approve -replace='aws_instance.matrix'
+        run: terraform apply -input=false -auto-approve
 
       - name: Read Terraform outputs
         id: tf_out
