@@ -154,4 +154,7 @@ services:
       PORKBUN_SECRET_API_KEY: ${PORKBUN_SECRET_API_KEY}
       DOMAINS: ${DDNS_DOMAINS}
     volumes:
-      - /srv/matrix/ddns-updater:/updater/data
+      - ddns_data:/updater/data
+
+volumes:
+  ddns_data:
