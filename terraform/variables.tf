@@ -46,8 +46,8 @@ variable "porkbun_api_key" {
   type        = string
 }
 
-variable "porkbun_api_secrete_key" {
-  description = "Porkbun API Secrete key to store in SSM"
+variable "porkbun_secrete_api_key" {
+  description = "Porkbun Secrete API key to store in SSM"
   type        = string
 }
 

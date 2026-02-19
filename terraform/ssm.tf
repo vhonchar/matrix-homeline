@@ -6,9 +6,9 @@ locals {
     TURN_SHARED_SECRET         = { length = 64, special = true }
   }
   static_secrets = {
-    PORKBUN_API_KEY         = var.porkbun_api_key
-    PORKBUN_API_SECRETE_KEY = var.porkbun_api_secrete_key
-    ACME_EMAIL              = var.acme_email
+    PORKBUN_API_KEY        = var.porkbun_api_key
+    PORKBUN_SECRET_API_KEY = var.porkbun_secrete_api_key
+    ACME_EMAIL             = var.acme_email
   }
 }
 
