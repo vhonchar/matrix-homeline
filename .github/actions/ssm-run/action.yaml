@@ -117,16 +117,11 @@ runs:
             exit 1
           fi
 
-          # Force execution in bash (not /bin/sh) so `source` works.
-          # We wrap the entire multi-line block into a single: bash -lc '<script>' invocation.
-          # jq @sh safely shell-escapes the whole script (including newlines).
-          ESCAPED_SCRIPT="$(printf '%s' "$COMMANDS_BLOCK" | jq -Rs '@sh')"
-          BASH_COMMAND="bash -lc $ESCAPED_SCRIPT"
-
-          # Build the SSM parameters object as JSON. We pass a *single* command:
-          #   ["bash -lc '<script>'"]
-          PARAMETERS_ARG="$(jq -cn --arg cmd "$BASH_COMMAND" '{commands:[$cmd]}')"
-          echo $PARAMETERS_ARG
+          # Convert multi-line block into JSON array for SSM "commands" parameter.
+          # We preserve lines as-is (including empty ones).
+          # Note: jq -Rs reads raw input and splits on newlines.
+          COMMANDS_JSON="$(printf '%s' "$COMMANDS_BLOCK" | jq -Rs 'split("\n")')"
+          PARAMETERS_ARG="{\"commands\": $COMMANDS_JSON}"
         fi
 
         # Send command (single execution / single CommandId).
