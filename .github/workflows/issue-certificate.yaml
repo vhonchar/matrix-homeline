@@ -37,10 +37,14 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           instance-id: ${{ steps.instance.outputs.instance_id }}
           commands: |
-            set -euo pipefail
-            cd /opt/matrix-homeline
-            . .env
-            . ssm.env
-            docker exec matrix-acme acme.sh --register-account -m "$ACME_EMAIL" || true
-            docker exec matrix-acme acme.sh --issue --dns dns_porkbun -d "$MATRIX_DOMAIN" || docker exec matrix-acme acme.sh --renew -d "$MATRIX_DOMAIN" --force
-            docker exec matrix-acme acme.sh --deploy --deploy-hook docker -d "$MATRIX_DOMAIN"
+            bash <<'EOF'
+              set -euo pipefail
+              cd /opt/matrix-homeline
+              source .env
+              source ssm.env
+              docker compose up -d
+              docker exec matrix-acme acme.sh --register-account -m "$ACME_EMAIL" || true
+              docker exec matrix-acme acme.sh --issue --dns dns_porkbun -d "$MATRIX_DOMAIN" || docker exec matrix-acme acme.sh --renew -d "$MATRIX_DOMAIN" --force
+              docker exec matrix-acme acme.sh --deploy --deploy-hook docker -d "$MATRIX_DOMAIN"
+            EOF
+            
