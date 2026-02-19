@@ -37,6 +37,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           instance-id: ${{ steps.instance.outputs.instance_id }}
           commands: |
+            set -euo pipefail
             cd /opt/matrix-homeline
             source .env
             source ssm.env

@@ -1,6 +1,6 @@
 name: "SSM Run Commands (sync)"
 description: "Run shell commands on an EC2 instance via AWS SSM and wait for completion."
-author: "vhonchar"
+author: "your-org"
 
 inputs:
   aws-region:
@@ -78,10 +78,13 @@ runs:
           exit 1
         fi
 
-        # Convert multi-line block into JSON array for SSM "commands" parameter.
-        # We preserve lines as-is (including empty ones).
-        # Note: jq -Rs reads raw input and splits on newlines.
-        COMMANDS_JSON="$(printf '%s' "$COMMANDS_BLOCK" | jq -Rs 'split("\n")')"
+        # jq @sh safely shell-escapes the whole script (including newlines).
+        ESCAPED_SCRIPT="$(printf '%s' "$COMMANDS_BLOCK" | jq -Rs '@sh')"
+        BASH_COMMAND="bash -lc $ESCAPED_SCRIPT"
+
+        # Build the SSM parameters object as JSON. We pass a *single* command:
+        #   ["bash -lc '<script>'"]
+        PARAMETERS_JSON="$(jq -cn --arg cmd "$BASH_COMMAND" '{commands:[$cmd]}')"
 
         # Send command (single execution / single CommandId).
         COMMAND_ID="$(aws ssm send-command \
@@ -89,7 +92,7 @@ runs:
           --document-name "$DOCUMENT_NAME" \
           --instance-ids "$INSTANCE_ID" \
           --comment "$COMMENT" \
-          --parameters "{\"commands\": $COMMANDS_JSON}" \
+          --parameters "$PARAMETERS_JSON" \
           --query "Command.CommandId" \
           --output text)"
 
