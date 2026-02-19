@@ -34,150 +34,39 @@ jobs:
       - name: Mask password in logs
         run: echo "::add-mask::${{ inputs.password }}"
 
+      - uses: actions/checkout@v4
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ env.SSM_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
-
+      
       - name: Resolve instance ID
         id: instance
-        shell: bash
-        run: |
-          set -euo pipefail
+        uses: ./.github/actions/resolve-ec2-instance-id
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          instance_name: ${{ env.INSTANCE_NAME }}
 
-          INSTANCE_ID=$(aws ec2 describe-instances \
-            --region "$AWS_REGION" \
-            --filters "Name=tag:Name,Values=$INSTANCE_NAME" "Name=instance-state-name,Values=running" \
-            --query "Reservations[].Instances[].InstanceId" \
-            --output text)
+      - name: Run remote commands (SSM)
+        uses: ./.github/actions/ssm-run
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          instance-id: ${{ steps.instance.outputs.instance_id }}
+          commands: |
+            bash <<'EOF'
+              set -eo pipefail
 
-          if [[ -z "$INSTANCE_ID" || "$INSTANCE_ID" == "None" ]]; then
-            echo "No running instance found with tag Name=$INSTANCE_NAME" >&2
-            exit 1
-          fi
+              if [[ "${{ inputs.admin }}" == "true" ]]; then
+                ADMIN_FLAG="-a"
+              else
+                ADMIN_FLAG=""
+              fi
 
-          echo "instance_id=$INSTANCE_ID" >> "$GITHUB_OUTPUT"
-
-          {
-            echo "## Target Instance"
-            echo ""
-            echo "| Key | Value |"
-            echo "|---|---|"
-            echo "| Instance ID | \`$INSTANCE_ID\` |"
-            echo "| Instance Name Tag | \`$INSTANCE_NAME\` |"
-            echo ""
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Create Synapse user via SSM
-        id: ssm
-        shell: bash
-        env:
-          INSTANCE_ID: ${{ steps.instance.outputs.instance_id }}
-          USERNAME: ${{ inputs.username }}
-          PASSWORD: ${{ inputs.password }}
-          ADMIN: ${{ inputs.admin }}
-        run: |
-          set -euo pipefail
-
-          if [[ "$ADMIN" == "true" ]]; then
-            ADMIN_FLAG="-a"
-          else
-            ADMIN_FLAG=""
-          fi
-
-          RUN_CMD="docker exec -i matrix-synapse register_new_matrix_user \
-            -c /data/homeserver.yaml \
-            -u $(printf '%q' "$USERNAME") \
-            -p $(printf '%q' "$PASSWORD") \
-            ${ADMIN_FLAG} \
-            http://localhost:8008"
-
-          COMMAND_ID=$(aws ssm send-command \
-            --region "$AWS_REGION" \
-            --document-name "AWS-RunShellScript" \
-            --instance-ids "$INSTANCE_ID" \
-            --parameters "commands=$RUN_CMD" \
-            --comment "Create Matrix user via GitHub Actions" \
-            --query "Command.CommandId" \
-            --output text)
-
-          CONSOLE_URL="https://${AWS_REGION}.console.aws.amazon.com/systems-manager/run-command/${COMMAND_ID}?region=${AWS_REGION}"
-
-          echo "command_id=$COMMAND_ID" >> "$GITHUB_OUTPUT"
-          echo "console_url=$CONSOLE_URL" >> "$GITHUB_OUTPUT"
-
-          {
-            echo "## Synapse User Creation"
-            echo ""
-            echo "| Key | Value |"
-            echo "|---|---|"
-            echo "| Username | \`${USERNAME}\` |"
-            echo "| Admin | \`${ADMIN}\` |"
-            echo "| Command ID | \`${COMMAND_ID}\` |"
-            echo "| Console Link | $CONSOLE_URL |"
-            echo ""
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Track SSM command status
-        shell: bash
-        env:
-          INSTANCE_ID: ${{ steps.instance.outputs.instance_id }}
-          COMMAND_ID: ${{ steps.ssm.outputs.command_id }}
-          CONSOLE_URL: ${{ steps.ssm.outputs.console_url }}
-        run: |
-          set -euo pipefail
-
-          echo "Tracking SSM command $COMMAND_ID on instance $INSTANCE_ID"
-          echo "Console: $CONSOLE_URL"
-
-          for i in {1..60}; do  # ~10 minutes (60 * 10s)
-            STATUS=$(aws ssm list-commands \
-              --region "$AWS_REGION" \
-              --command-id "$COMMAND_ID" \
-              --query "Commands[0].Status" \
-              --output text 2>/dev/null || true)
-
-            if [[ -z "${STATUS:-}" || "$STATUS" == "None" ]]; then
-              echo "Status: none (poll $i/60)"
-              sleep 10
-              continue
-            fi
-
-            echo "Status: $STATUS (poll $i/60)"
-
-            case "$STATUS" in
-              Success)
-                echo "User creation succeeded."
-                {
-                  echo "## User Creation Result"
-                  echo "- Status: **Success**"
-                  echo "- Console: $CONSOLE_URL"
-                } >> "$GITHUB_STEP_SUMMARY"
-                exit 0
-                ;;
-              Failed|Cancelled|TimedOut)
-                echo "User creation finished with status: $STATUS"
-                {
-                  echo "## User Creation Result"
-                  echo "- Status: **$STATUS**"
-                  echo "- Console: $CONSOLE_URL"
-                } >> "$GITHUB_STEP_SUMMARY"
-                exit 1
-                ;;
-              Pending|InProgress|Delayed)
-                sleep 10
-                ;;
-              *)
-                sleep 10
-                ;;
-            esac
-          done
-
-          echo "Timed out waiting for user creation to finish."
-          {
-            echo "## User Creation Result"
-            echo "- Status: **TimedOut (polling)**"
-            echo "- Console: $CONSOLE_URL"
-          } >> "$GITHUB_STEP_SUMMARY"
-          exit 1
+              docker exec -i matrix-synapse register_new_matrix_user \
+                -c /data/homeserver.yaml \
+                -u $(printf '%q' "${{ inputs.username }}") \
+                -p $(printf '%q' "${{ inputs.password }}") \
+                ${ADMIN_FLAG} \
+                http://localhost:8008
+            EOF
