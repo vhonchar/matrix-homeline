@@ -1,5 +1,7 @@
 name: Resolve EC2 Instance ID
 description: Resolve a running EC2 instance ID by tag filters and write a step summary.
+author: "vhonchar"
+
 inputs:
   aws_region:
     description: AWS region

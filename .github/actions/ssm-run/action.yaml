@@ -1,0 +1,181 @@
+name: "SSM Run Commands (sync)"
+description: "Run shell commands on an EC2 instance via AWS SSM and wait for completion."
+author: "vhonchar"
+
+inputs:
+  aws-region:
+    description: "AWS region"
+    required: true
+  instance-id:
+    description: "EC2 instance id"
+    required: true
+  commands:
+    description: |
+      Multi-line shell commands to run (single SSM command execution).
+      Example:
+        set -euo pipefail
+        cd /opt/app
+        source .env
+        echo "$VAR"
+    required: true
+  document-name:
+    description: "SSM document name"
+    required: false
+    default: "AWS-RunShellScript"
+  comment:
+    description: "SSM comment/audit string"
+    required: false
+    default: "Run from GitHub Actions"
+  timeout-seconds:
+    description: "Max seconds to wait for completion"
+    required: false
+    default: "1200"
+  poll-interval-seconds:
+    description: "Polling interval"
+    required: false
+    default: "5"
+
+outputs:
+  command-id:
+    description: "SSM command id"
+    value: ${{ steps.run.outputs.command_id }}
+  console-url:
+    description: "AWS Console deep link to the SSM command"
+    value: ${{ steps.run.outputs.console_url }}
+  status:
+    description: "Final SSM command status"
+    value: ${{ steps.run.outputs.status }}
+  stdout:
+    description: "Command stdout (may be truncated by SSM)"
+    value: ${{ steps.run.outputs.stdout }}
+  stderr:
+    description: "Command stderr (may be truncated by SSM)"
+    value: ${{ steps.run.outputs.stderr }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: run
+      shell: bash
+      env:
+        AWS_REGION: ${{ inputs.aws-region }}
+        INSTANCE_ID: ${{ inputs.instance-id }}
+        DOCUMENT_NAME: ${{ inputs.document-name }}
+        COMMENT: ${{ inputs.comment }}
+        TIMEOUT_SECONDS: ${{ inputs.timeout-seconds }}
+        POLL_INTERVAL_SECONDS: ${{ inputs.poll-interval-seconds }}
+        COMMANDS_BLOCK: ${{ inputs.commands }}
+      run: |
+        set -euo pipefail
+
+        if ! command -v aws >/dev/null 2>&1; then
+          echo "::error::AWS CLI not found. Use ubuntu-latest runner or install awscli."
+          exit 1
+        fi
+
+        if ! command -v jq >/dev/null 2>&1; then
+          echo "::error::jq not found. It's present on ubuntu-latest; otherwise install jq."
+          exit 1
+        fi
+
+        # Convert multi-line block into JSON array for SSM "commands" parameter.
+        # We preserve lines as-is (including empty ones).
+        # Note: jq -Rs reads raw input and splits on newlines.
+        COMMANDS_JSON="$(printf '%s' "$COMMANDS_BLOCK" | jq -Rs 'split("\n")')"
+
+        # Send command (single execution / single CommandId).
+        COMMAND_ID="$(aws ssm send-command \
+          --region "$AWS_REGION" \
+          --document-name "$DOCUMENT_NAME" \
+          --instance-ids "$INSTANCE_ID" \
+          --comment "$COMMENT" \
+          --parameters "{\"commands\": $COMMANDS_JSON}" \
+          --query "Command.CommandId" \
+          --output text)"
+
+        CONSOLE_URL="https://${AWS_REGION}.console.aws.amazon.com/systems-manager/run-command/${COMMAND_ID}?region=${AWS_REGION}"
+
+        echo "SSM CommandId: $COMMAND_ID"
+        echo "Console: $CONSOLE_URL"
+
+        echo "command_id=$COMMAND_ID" >> "$GITHUB_OUTPUT"
+        echo "console_url=$CONSOLE_URL" >> "$GITHUB_OUTPUT"
+
+        # Wait for invocation to exist (eventual consistency) and then finish.
+        deadline=$(( $(date +%s) + TIMEOUT_SECONDS ))
+        STATUS=""
+
+        while true; do
+          now=$(date +%s)
+          if (( now > deadline )); then
+            echo "::error::Timed out waiting for SSM command to finish. Console: $CONSOLE_URL"
+            echo "status=TimedOut" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          # get-command-invocation is the most direct way to see status + output.
+          # It may fail early if invocation not yet created, so we tolerate errors.
+          STATUS="$(aws ssm get-command-invocation \
+            --region "$AWS_REGION" \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query "Status" \
+            --output text 2>/dev/null || true)"
+
+          if [[ -z "${STATUS:-}" || "$STATUS" == "None" ]]; then
+            sleep "$POLL_INTERVAL_SECONDS"
+            continue
+          fi
+
+          echo "Status: $STATUS"
+
+          case "$STATUS" in
+            Pending|InProgress|Delayed)
+              sleep "$POLL_INTERVAL_SECONDS"
+              ;;
+            Success|Failed|Cancelled|TimedOut)
+              break
+              ;;
+            *)
+              # Unknown status; keep waiting a bit
+              sleep "$POLL_INTERVAL_SECONDS"
+              ;;
+          esac
+        done
+
+        # Fetch stdout/stderr (note: SSM output can be truncated).
+        STDOUT="$(aws ssm get-command-invocation \
+          --region "$AWS_REGION" \
+          --command-id "$COMMAND_ID" \
+          --instance-id "$INSTANCE_ID" \
+          --query "StandardOutputContent" \
+          --output text 2>/dev/null || true)"
+
+        STDERR="$(aws ssm get-command-invocation \
+          --region "$AWS_REGION" \
+          --command-id "$COMMAND_ID" \
+          --instance-id "$INSTANCE_ID" \
+          --query "StandardErrorContent" \
+          --output text 2>/dev/null || true)"
+
+        # Outputs
+        {
+          echo "status=$STATUS"
+          echo "stdout<<__SSM_STDOUT__"
+          echo "$STDOUT"
+          echo "__SSM_STDOUT__"
+          echo "stderr<<__SSM_STDERR__"
+          echo "$STDERR"
+          echo "__SSM_STDERR__"
+        } >> "$GITHUB_OUTPUT"
+
+        # Surface output in logs (useful for live debugging).
+        echo "----- STDOUT -----"
+        echo "$STDOUT"
+        echo "----- STDERR -----"
+        echo "$STDERR"
+
+        if [[ "$STATUS" != "Success" ]]; then
+          echo "::error::SSM command finished with status $STATUS. Console: $CONSOLE_URL"
+          exit 1
+        fi
