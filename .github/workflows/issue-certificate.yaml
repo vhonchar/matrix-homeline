@@ -42,6 +42,6 @@ jobs:
               "source .env",
               "source ssm.env",
               "docker exec matrix-acme acme.sh --register-account -m \"$ACME_EMAIL\" || true",
-              "docker exec matrix-acme acme.sh --issue --dns dns_porkbun -d \"$MATRIX_DOMAINL\" || docker exec matrix-acme acme.sh --renew -d \"$MATRIX_DOMAINL\" --force",
-              "docker exec matrix-acme acme.sh --deploy --deploy-hook docker -d \"$MATRIX_DOMAINL\""
+              "docker exec matrix-acme acme.sh --issue --dns dns_porkbun -d \"$MATRIX_DOMAIN\" || docker exec matrix-acme acme.sh --renew -d \"$MATRIX_DOMAIN\" --force",
+              "docker exec matrix-acme acme.sh --deploy --deploy-hook docker -d \"$MATRIX_DOMAIN\""
             ]
