@@ -1,10 +1,11 @@
-name: Create Synapse User
+name: Create new user
+run-name: Create user ${{ inputs.username }}
 
 on:
   workflow_dispatch:
     inputs:
       username:
-        description: "Matrix localpart (e.g., alice)"
+        description: "Username"
         required: true
         type: string
       password:
