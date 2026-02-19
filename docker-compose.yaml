@@ -117,7 +117,7 @@ services:
       - "443:443"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - /srv/matrix/nginx/ssl:/etc/nginx/ssl:ro
+      - /srv/matrix/nginx/ssl:/etc/nginx/ssl
   
   # This service only renews certificate
   # If the certificate has never been issued,
