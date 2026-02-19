@@ -59,9 +59,9 @@ jobs:
               set -eo pipefail
 
               if [[ "${{ inputs.admin }}" == "true" ]]; then
-                ADMIN_FLAG="-a"
+                ADMIN_FLAG="--admin"
               else
-                ADMIN_FLAG=""
+                ADMIN_FLAG="--no-admin"
               fi
 
               docker exec -i matrix-synapse register_new_matrix_user \
