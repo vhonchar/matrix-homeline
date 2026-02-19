@@ -9,15 +9,32 @@ inputs:
   instance-id:
     description: "EC2 instance id"
     required: true
+
+  # --- Mode A: Run shell commands (default) ---
   commands:
     description: |
       Multi-line shell commands to run (single SSM command execution).
+      If neither `parameters` nor `parameters-json` are set, this action will run
+      the commands via: bash -lc '<script>'
       Example:
         set -euo pipefail
         cd /opt/app
         source .env
         echo "$VAR"
-    required: true
+    required: false
+
+  # --- Mode B: Run a custom SSM document with parameters ---
+  # Provide exactly one of `parameters` or `parameters-json`.
+  parameters:
+    description: "SSM parameters in AWS CLI shorthand (e.g. ScriptUrl=...,ScriptSha256=...)"
+    required: false
+  parameters-json:
+    description: |
+      SSM parameters as JSON map (recommended; handles special chars safely).
+      Example:
+        {"ScriptUrl":["https://..."],"ScriptSha256":["abcd..."]}
+    required: false
+
   document-name:
     description: "SSM document name"
     required: false
@@ -65,6 +82,8 @@ runs:
         TIMEOUT_SECONDS: ${{ inputs.timeout-seconds }}
         POLL_INTERVAL_SECONDS: ${{ inputs.poll-interval-seconds }}
         COMMANDS_BLOCK: ${{ inputs.commands }}
+        PARAMETERS_SHORTHAND: ${{ inputs.parameters }}
+        PARAMETERS_JSON_INPUT: ${{ inputs.parameters-json }}
       run: |
         set -euo pipefail
 
@@ -78,13 +97,37 @@ runs:
           exit 1
         fi
 
-        # jq @sh safely shell-escapes the whole script (including newlines).
-        ESCAPED_SCRIPT="$(printf '%s' "$COMMANDS_BLOCK" | jq -Rs '@sh')"
-        BASH_COMMAND="bash -lc $ESCAPED_SCRIPT"
+        # Choose execution mode:
+        # - If parameters-json is set: run DOCUMENT_NAME with those parameters.
+        # - Else if parameters (shorthand) is set: run DOCUMENT_NAME with shorthand parameters.
+        # - Else: run COMMANDS_BLOCK under bash via AWS-RunShellScript-style {commands:["bash -lc ..."]}.
 
-        # Build the SSM parameters object as JSON. We pass a *single* command:
-        #   ["bash -lc '<script>'"]
-        PARAMETERS_JSON="$(jq -cn --arg cmd "$BASH_COMMAND" '{commands:[$cmd]}')"
+        if [[ -n "${PARAMETERS_JSON_INPUT:-}" && -n "${PARAMETERS_SHORTHAND:-}" ]]; then
+          echo "::error::Provide only one of inputs.parameters or inputs.parameters-json (not both)."
+          exit 1
+        fi
+
+        if [[ -n "${PARAMETERS_JSON_INPUT:-}" ]]; then
+          PARAMETERS_ARG="$PARAMETERS_JSON_INPUT"
+        elif [[ -n "${PARAMETERS_SHORTHAND:-}" ]]; then
+          PARAMETERS_ARG="$PARAMETERS_SHORTHAND"
+        else
+          if [[ -z "${COMMANDS_BLOCK:-}" ]]; then
+            echo "::error::No commands provided. Set inputs.commands for shell mode, or provide inputs.parameters / inputs.parameters-json for document mode."
+            exit 1
+          fi
+
+          # Force execution in bash (not /bin/sh) so `source` works.
+          # We wrap the entire multi-line block into a single: bash -lc '<script>' invocation.
+          # jq @sh safely shell-escapes the whole script (including newlines).
+          ESCAPED_SCRIPT="$(printf '%s' "$COMMANDS_BLOCK" | jq -Rs '@sh')"
+          BASH_COMMAND="bash -lc $ESCAPED_SCRIPT"
+
+          # Build the SSM parameters object as JSON. We pass a *single* command:
+          #   ["bash -lc '<script>'"]
+          PARAMETERS_ARG="$(jq -cn --arg cmd "$BASH_COMMAND" '{commands:[$cmd]}')"
+          echo $PARAMETERS_ARG
+        fi
 
         # Send command (single execution / single CommandId).
         COMMAND_ID="$(aws ssm send-command \
@@ -92,7 +135,7 @@ runs:
           --document-name "$DOCUMENT_NAME" \
           --instance-ids "$INSTANCE_ID" \
           --comment "$COMMENT" \
-          --parameters "$PARAMETERS_JSON" \
+          --parameters "$PARAMETERS_ARG" \
           --query "Command.CommandId" \
           --output text)"
 
