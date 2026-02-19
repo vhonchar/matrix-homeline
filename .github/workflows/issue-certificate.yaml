@@ -31,10 +31,10 @@ jobs:
           instance_name: ${{ env.INSTANCE_NAME }}
 
       - name: Run ACME bootstrap via SSM
-        uses: aws-actions/aws-ssm-send-command@v1
+        uses: peterkimzz/aws-ssm-send-command@v1.1.1
         with:
           instance-ids: ${{ steps.instance.outputs.instance_id }}
-          document-name: AWS-RunShellScript
+          working-directory: /opt/matrix-homeline
           comment: "Issue new certificate"
           parameters: |
             commands=[
