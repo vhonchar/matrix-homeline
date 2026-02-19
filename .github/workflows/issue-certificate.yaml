@@ -58,6 +58,8 @@ jobs:
                 --fullchain-file /certs/fullchain.pem \
                 --cert-file      /certs/cert.pem \
                 --ca-file        /certs/ca.pem \
-                --reloadcmd      "docker kill -s HUP matrix-nginx"
+                --reloadcmd      "true"
+
+              docker kill -s HUP matrix-nginx || true
             EOF
             
