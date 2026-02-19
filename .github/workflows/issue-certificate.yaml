@@ -1,0 +1,47 @@
+name: Issue new certificate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-central-1
+  SSM_ROLE_TO_ASSUME: arn:aws:iam::887016236946:role/github-terraform-matrix-homeline
+  INSTANCE_NAME: matrix-homeserver
+
+jobs:
+  acme:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.SSM_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Resolve instance ID
+        id: instance
+        uses: ./.github/actions/resolve-ec2-instance-id
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          instance_name: ${{ env.INSTANCE_NAME }}
+
+      - name: Run ACME bootstrap via SSM
+        uses: aws-actions/aws-ssm-send-command@v1
+        with:
+          instance-ids: ${{ steps.instance.outputs.instance_id }}
+          document-name: AWS-RunShellScript
+          comment: "Issue new certificate"
+          parameters: |
+            commands=[
+              "cd /opt/matrix-homeline",
+              "source .env",
+              "source ssm.env",
+              "docker exec matrix-acme acme.sh --register-account -m \"$ACME_EMAIL\" || true",
+              "docker exec matrix-acme acme.sh --issue --dns dns_porkbun -d \"$MATRIX_DOMAINL\" || docker exec matrix-acme acme.sh --renew -d \"$MATRIX_DOMAINL\" --force",
+              "docker exec matrix-acme acme.sh --deploy --deploy-hook docker -d \"$MATRIX_DOMAINL\""
+            ]

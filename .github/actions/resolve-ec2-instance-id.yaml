@@ -1,0 +1,72 @@
+name: Resolve EC2 Instance ID
+description: Resolve a running EC2 instance ID by tag filters and write a step summary.
+inputs:
+  aws_region:
+    description: AWS region
+    required: true
+  instance_name:
+    description: Value of the EC2 tag "Name"
+    required: true
+  tag_key:
+    description: Tag key to match
+    required: false
+    default: Name
+  state:
+    description: Instance state to match
+    required: false
+    default: running
+  allow_multiple:
+    description: If true, returns the first match even if multiple instances match
+    required: false
+    default: "false"
+
+outputs:
+  instance_id:
+    description: Resolved EC2 instance id
+    value: ${{ steps.resolve.outputs.instance_id }}
+
+runs:
+  using: composite
+  steps:
+    - id: resolve
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        AWS_REGION="${{ inputs.aws_region }}"
+        INSTANCE_NAME="${{ inputs.instance_name }}"
+        TAG_KEY="${{ inputs.tag_key }}"
+        STATE="${{ inputs.state }}"
+        ALLOW_MULTIPLE="${{ inputs.allow_multiple }}"
+
+        IDS=($(aws ec2 describe-instances \
+          --region "$AWS_REGION" \
+          --filters "Name=tag:${TAG_KEY},Values=${INSTANCE_NAME}" "Name=instance-state-name,Values=${STATE}" \
+          --query "Reservations[].Instances[].InstanceId" \
+          --output text))
+
+        if [[ ${#IDS[@]} -eq 0 || "${IDS[0]-}" == "None" ]]; then
+          echo "No ${STATE} instance found with tag ${TAG_KEY}=${INSTANCE_NAME} in ${AWS_REGION}" >&2
+          exit 1
+        fi
+
+        if [[ ${#IDS[@]} -gt 1 && "$ALLOW_MULTIPLE" != "true" ]]; then
+          echo "Multiple instances match tag ${TAG_KEY}=${INSTANCE_NAME} in ${AWS_REGION}: ${IDS[*]}" >&2
+          echo "Set allow_multiple=true if you want the first match." >&2
+          exit 1
+        fi
+
+        INSTANCE_ID="${IDS[0]}"
+        echo "instance_id=$INSTANCE_ID" >> "$GITHUB_OUTPUT"
+
+        {
+          echo "## Target Instance"
+          echo ""
+          echo "| Key | Value |"
+          echo "|---|---|"
+          echo "| Instance ID | \`$INSTANCE_ID\` |"
+          echo "| Region | \`$AWS_REGION\` |"
+          echo "| Tag | \`${TAG_KEY}=$INSTANCE_NAME\` |"
+          echo "| State | \`$STATE\` |"
+          echo ""
+        } >> "$GITHUB_STEP_SUMMARY"
