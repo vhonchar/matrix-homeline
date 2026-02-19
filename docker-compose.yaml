@@ -115,7 +115,7 @@ services:
       - "443:443"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - /srv/matrix/nginx/ssl:/etc/nginx/ssl:ro
 
   acme:
     image: neilpang/acme.sh:latest
@@ -128,17 +128,15 @@ services:
       ACME_EMAIL: ${ACME_EMAIL}
       ACME_PRIMARY_DOMAIN: ${MATRIX_DOMAIN}
       ACME_SAN_DOMAIN: ${MATRIX_FQDN}
+
     volumes:
-      - ./nginx/ssl:/certs
-      # - /var/run/docker.sock:/var/run/docker.sock
-    command: >
-      sh -c "apk add --no-cache docker-cli &&
-      acme.sh --register-account -m \"$${ACME_EMAIL}\" --home /acme &&
-      acme.sh --issue --dns dns_porkbun -d \"$${ACME_PRIMARY_DOMAIN}\" -d \"$${ACME_SAN_DOMAIN}\" --keylength ec-256 --home /acme &&
-      acme.sh --install-cert -d \"$${ACME_PRIMARY_DOMAIN}\" --ecc --home /acme
-      --cert-file /certs/fullchain.pem --key-file /certs/privkey.pem
-      --reloadcmd 'docker kill -s HUP matrix-nginx' &&
-      crond -f -l 8"
+      # persistent acme state (accounts, cert configs, renewals)
+      - /srv/matrix/acme:/acme.sh          
+      - /srv/matrix/nginx/ssl:/certs
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  command: daemon
+
 
   ddns-updater:
     image: qmcgaw/ddns-updater:latest
