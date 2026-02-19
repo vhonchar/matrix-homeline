@@ -47,8 +47,12 @@ jobs:
               set +a
 
               docker compose up -d
-              docker exec matrix-acme acme.sh --register-account -m "$ACME_EMAIL" || true
-              docker exec matrix-acme acme.sh --issue --dns dns_porkbun -d "$MATRIX_DOMAIN" || docker exec matrix-acme acme.sh --renew -d "$MATRIX_DOMAIN" --force
+              docker exec matrix-acme acme.sh --set-default-ca --server letsencrypt
+              docker exec matrix-acme acme.sh --register-account --server letsencrypt -m "$ACME_EMAIL"
+
+              docker exec matrix-acme acme.sh --issue  --server letsencrypt --dns dns_porkbun -d "$MATRIX_DOMAIN" \
+                || docker exec matrix-acme acme.sh --renew --server letsencrypt -d "$MATRIX_DOMAIN" --force
+
               docker exec matrix-acme acme.sh --deploy --deploy-hook docker -d "$MATRIX_DOMAIN"
             EOF
             
