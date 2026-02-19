@@ -38,7 +38,7 @@ jobs:
           instance-id: ${{ steps.instance.outputs.instance_id }}
           commands: |
             bash <<'EOF'
-              set -euo pipefail
+              set -eo pipefail
               cd /opt/matrix-homeline
 
               set -a
