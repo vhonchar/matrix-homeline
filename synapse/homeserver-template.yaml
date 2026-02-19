@@ -92,3 +92,7 @@ rc_login:
   failed_attempts:
     per_second: 0.05
     burst_count: 5
+
+experimental_features:
+  # enable link of new device via QR code
+  msc3882_enabled: true
