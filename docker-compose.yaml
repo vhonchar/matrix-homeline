@@ -103,6 +103,8 @@ services:
   nginx:
     image: nginx:alpine
     container_name: matrix-nginx
+    labels:
+      - sh.acme.autoload.domain=${MATRIX_DOMAIN}
     depends_on:
       synapse:
         condition: service_healthy
@@ -116,27 +118,34 @@ services:
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - /srv/matrix/nginx/ssl:/etc/nginx/ssl:ro
-
+  
+  # This service only renews certificate
+  # If the certificate has never been issued,
+  # use follwoing workflow AFTER all services are deployed
+  # .github/workflows/issue-certificate.yaml
   acme:
     image: neilpang/acme.sh:latest
     container_name: matrix-acme
     restart: unless-stopped
     networks: [matrix]
-    environment:
-      PORKBUN_API_KEY: ${PORKBUN_API_KEY}
-      PORKBUN_SECRET_API_KEY: ${PORKBUN_SECRET_API_KEY}
-      ACME_EMAIL: ${ACME_EMAIL}
-      ACME_PRIMARY_DOMAIN: ${MATRIX_DOMAIN}
-      ACME_SAN_DOMAIN: ${MATRIX_FQDN}
-
+    command: daemon
     volumes:
       # persistent acme state (accounts, cert configs, renewals)
-      - /srv/matrix/acme:/acme.sh          
+      - /srv/matrix/acme:/acme.sh
       - /srv/matrix/nginx/ssl:/certs
       - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      DEPLOY_DOCKER_CONTAINER_LABEL: sh.acme.autoload.domain=${MATRIX_DOMAIN}
+      PORKBUN_API_KEY: ${PORKBUN_API_KEY}
+      PORKBUN_SECRET_API_KEY: ${PORKBUN_SECRET_API_KEY}
 
-  command: daemon
+      DEPLOY_DOCKER_CONTAINER_FULLCHAIN_FILE: /etc/nginx/ssl/fullchain.pem
+      DEPLOY_DOCKER_CONTAINER_KEY_FILE: /etc/nginx/ssl/privkey.pem
+      DEPLOY_DOCKER_CONTAINER_CERT_FILE: /etc/nginx/ssl/cert.pem
+      DEPLOY_DOCKER_CONTAINER_CA_FILE: /etc/nginx/ssl/ca.pem
 
+      # reload nginx in-container
+      DEPLOY_DOCKER_CONTAINER_RELOAD_CMD: nginx -s reload
 
   ddns-updater:
     image: qmcgaw/ddns-updater:latest
