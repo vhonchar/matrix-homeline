@@ -40,8 +40,12 @@ jobs:
             bash <<'EOF'
               set -euo pipefail
               cd /opt/matrix-homeline
+
+              set -a
               source .env
               source ssm.env
+              set +a
+
               docker compose up -d
               docker exec matrix-acme acme.sh --register-account -m "$ACME_EMAIL" || true
               docker exec matrix-acme acme.sh --issue --dns dns_porkbun -d "$MATRIX_DOMAIN" || docker exec matrix-acme acme.sh --renew -d "$MATRIX_DOMAIN" --force
