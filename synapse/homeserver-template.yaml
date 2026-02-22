@@ -96,3 +96,11 @@ rc_login:
 experimental_features:
   # enable link of new device via QR code
   msc3882_enabled: true
+  # enable video call via livekit
+  msc3401_enabled: true
+
+rtc:
+  enabled: true
+  focus:
+    type: livekit
+    livekit_service_url: http://rtc-focus:8080

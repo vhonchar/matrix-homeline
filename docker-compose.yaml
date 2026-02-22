@@ -99,6 +99,53 @@ services:
       - "5349:5349/tcp"
       - "5349:5349/udp"
       - "49160-49200:49160-49200/udp"
+  
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: matrix-livekit
+    restart: unless-stopped
+    networks: [matrix]
+    # LiveKit uses several UDP ports for media. The main ones are:
+    # - 7880 (HTTP/WebSocket)
+    # - 7881 (TCP for RTC)
+    # - 50000-60000/udp (media)
+    command:
+    - --port=7880
+    - --rtc.tcp_port=7881
+    - --rtc.udp_port_range_start=50000
+    - --rtc.udp_port_range_end=50100
+    - --keys=${LIVEKIT_API_KEY}:${LIVEKIT_API_SECRET}
+    expose:
+      - "7880"
+      - "7881"
+    ports:
+      - "7880:7880/tcp"
+      - "7881:7881/tcp"
+      - "50000-50100:50000-50100/udp"  # keep small
+
+  rtc-focus:
+    image: ghcr.io/vector-im/matrix-rtc-focus:latest
+    container_name: matrix-rtc-focus
+    restart: unless-stopped
+    networks: [matrix]
+    depends_on:
+      synapse:
+        condition: service_healthy
+      livekit:
+        condition: service_started
+    environment:
+      MATRIX_HOMESERVER_URL: http://matrix-synapse:8008
+      MATRIX_SERVER_PUBLIC_URL: https://${MATRIX_DOMAIN}
+
+      # LiveKit (internal)
+      LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+
+      RUST_LOG: info
+    expose:
+      - "8080"
+
 
   nginx:
     image: nginx:alpine

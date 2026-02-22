@@ -4,6 +4,8 @@ locals {
     MACAROON_SECRET_KEY        = { length = 64, special = true }
     REGISTRATION_SHARED_SECRET = { length = 64, special = true }
     TURN_SHARED_SECRET         = { length = 64, special = true }
+    LIVEKIT_API_KEY            = { length = 8, special = false }
+    LIVEKIT_API_SECRET         = { length = 64, special = true }
   }
   static_secrets = {
     PORKBUN_API_KEY        = var.porkbun_api_key
