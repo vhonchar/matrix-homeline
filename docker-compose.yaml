@@ -116,13 +116,16 @@ services:
     container_name: matrix-livekit
     networks: [matrix]
     environment:
-      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}:${LIVEKIT_API_SECRET}"
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
       LIVEKIT_CONFIG_BODY: |
         port: 7880
         rtc:
           tcp_port: 7881
           udp_port_range_start: 50000
           udp_port_range_end: 50100
+    expose:
+      - "7880"
+      - "7881"
     ports:
       - "7880:7880"
       - "7881:7881"
