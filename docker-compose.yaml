@@ -89,44 +89,44 @@ services:
     container_name: matrix-coturn
     restart: unless-stopped
     networks: [matrix]
-    environment:
-      TURN_REALM: ${MATRIX_DOMAIN}
-      TURN_SHARED_SECRET: ${TURN_SHARED_SECRET}
-    volumes:
-      - ./coturn/turnserver.conf.template:/etc/coturn/turnserver.conf.template:ro
-      - /srv/matrix/coturn:/var/lib/coturn
-    entrypoint: >
-      /bin/sh -c "envsubst < /etc/coturn/turnserver.conf.template > /etc/coturn/turnserver.conf &&
-                  exec turnserver -c /etc/coturn/turnserver.conf -n"
     ports:
       - "3478:3478/tcp"
       - "3478:3478/udp"
       - "5349:5349/tcp"
       - "5349:5349/udp"
       - "49160-49200:49160-49200/udp"
+    command:
+      - -n
+      - --log-file=stdout
+      - --listening-port=3478
+      - --tls-listening-port=5349
+      - --realm=${MATRIX_DOMAIN}
+      - --server-name=${MATRIX_DOMAIN}
+      - --fingerprint
+      - --lt-cred-mech
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SHARED_SECRET}
+      - --min-port=49160
+      - --max-port=49200
+      - --no-multicast-peers
+      - --no-cli
   
   livekit:
     image: livekit/livekit-server:latest
     container_name: matrix-livekit
-    restart: unless-stopped
     networks: [matrix]
-    # LiveKit uses several UDP ports for media. The main ones are:
-    # - 7880 (HTTP/WebSocket)
-    # - 7881 (TCP for RTC)
-    # - 50000-60000/udp (media)
-    command:
-    - --port=7880
-    - --rtc.tcp_port=7881
-    - --rtc.udp_port_range_start=50000
-    - --rtc.udp_port_range_end=50100
-    - --keys=${LIVEKIT_API_KEY}:${LIVEKIT_API_SECRET}
-    expose:
-      - "7880"
-      - "7881"
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}:${LIVEKIT_API_SECRET}"
+      LIVEKIT_CONFIG_BODY: |
+        port: 7880
+        rtc:
+          tcp_port: 7881
+          udp_port_range_start: 50000
+          udp_port_range_end: 50100
     ports:
-      - "7880:7880/tcp"
-      - "7881:7881/tcp"
-      - "50000-50100:50000-50100/udp"  # keep small
+      - "7880:7880"
+      - "7881:7881"
+      - "50000-50100:50000-50100/udp"
 
   rtc-focus:
     image: ghcr.io/vector-im/matrix-rtc-focus:latest
@@ -143,7 +143,7 @@ services:
       MATRIX_SERVER_PUBLIC_URL: https://${MATRIX_DOMAIN}
 
       # LiveKit (internal)
-      LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_URL: ws://matrix-livekit:7880
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
 
