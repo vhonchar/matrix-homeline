@@ -5,7 +5,7 @@ locals {
     REGISTRATION_SHARED_SECRET = { length = 64, special = true }
     TURN_SHARED_SECRET         = { length = 64, special = true }
     LIVEKIT_API_KEY            = { length = 8, special = false }
-    LIVEKIT_API_SECRET         = { length = 64, special = true }
+    LIVEKIT_API_SECRET         = { length = 64, special = true, override_special = "!#$%&^" }
   }
   static_secrets = {
     PORKBUN_API_KEY        = var.porkbun_api_key
@@ -17,8 +17,9 @@ locals {
 resource "random_password" "generated" {
   for_each = local.secrets
 
-  length  = each.value.length
-  special = each.value.special
+  length           = each.value.length
+  special          = each.value.special
+  override_special = lookup(each.value, "override_special" , null)
 }
 
 resource "aws_ssm_parameter" "secrets" {
