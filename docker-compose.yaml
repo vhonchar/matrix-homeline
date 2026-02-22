@@ -128,26 +128,18 @@ services:
       - "7881:7881"
       - "50000-50100:50000-50100/udp"
 
-  rtc-focus:
-    image: ghcr.io/vector-im/matrix-rtc-focus:latest
-    container_name: matrix-rtc-focus
+  auth-service:
+    image: ghcr.io/element-hq/lk-jwt-service:latest
+    container_name: matrix-lk-jwt
     restart: unless-stopped
     networks: [matrix]
-    depends_on:
-      synapse:
-        condition: service_healthy
-      livekit:
-        condition: service_started
     environment:
-      MATRIX_HOMESERVER_URL: http://matrix-synapse:8008
-      MATRIX_SERVER_PUBLIC_URL: https://${MATRIX_DOMAIN}
-
-      # LiveKit (internal)
-      LIVEKIT_URL: ws://matrix-livekit:7880
-      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
-      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
-
-      RUST_LOG: info
+      LIVEKIT_JWT_PORT: "8080"
+      LIVEKIT_URL: https://${MATRIX_DOMAIN}/livekit
+      LIVEKIT_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_SECRET: ${LIVEKIT_API_SECRET}
+      # Allow your homeserver to create rooms (others can still join over federation if you want)
+      LIVEKIT_FULL_ACCESS_HOMESERVERS: ${MATRIX_DOMAIN}
     expose:
       - "8080"
 
