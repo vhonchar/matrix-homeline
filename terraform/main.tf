@@ -4,22 +4,65 @@
 
 resource "aws_security_group" "matrix" {
   name        = "matrix-sg"
-  description = "Allow SSH and HTTP/HTTPS for Matrix/Element host"
+  description = "Matrix Synapse, Element, and LiveKit ports"
   vpc_id      = data.aws_vpc.default.id
 
-  # HTTP
+  # --- Web & Matrix Client ---
   ingress {
+    description = "HTTP/HTTPS for Nginx"
     from_port   = 80
-    to_port     = 80
+    to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # HTTPS
   ingress {
-    from_port   = 443
-    to_port     = 443
+    description = "Matrix Federation"
+    from_port   = 8448
+    to_port     = 8448
     protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # --- LiveKit Media ---
+  ingress {
+    description = "LiveKit Signal Fallback"
+    from_port   = 7881
+    to_port     = 7881
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "LiveKit UDP Media (Match your Docker Compose)"
+    from_port   = 50000
+    to_port     = 50500
+    protocol    = "udp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # --- Coturn (TURN/STUN) ---
+  ingress {
+    description = "STUN/TURN Signaling"
+    from_port   = 3478
+    to_port     = 3478
+    protocol    = "tcp" # Add a separate one for protocol = "udp" if needed
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  
+  ingress {
+    description = "STUN/TURN Signaling UDP"
+    from_port   = 3478
+    to_port     = 3478
+    protocol    = "udp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Coturn Relay Range"
+    from_port   = 49152
+    to_port     = 65535
+    protocol    = "udp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
