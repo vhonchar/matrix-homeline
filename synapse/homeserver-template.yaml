@@ -77,10 +77,9 @@ turn_shared_secret: "${TURN_SHARED_SECRET}"
 turn_user_lifetime: "1h"
 turn_allow_guests: true
 
-# Conservative rate-limiting defaults (fine to start with)
 rc_message:
-  per_second: 0.5
-  burst_count: 30
+  per_second: 10
+  burst_count: 100
 
 rc_login:
   address:
@@ -94,13 +93,13 @@ rc_login:
     burst_count: 5
 
 experimental_features:
-  # enable link of new device via QR code
-  msc3882_enabled: true
-  # enable video call via livekit
-  msc3401_enabled: true
+  msc3882_enabled: true # Login via QR
+  msc3401_enabled: true # Native video calls
+  msc3030_enabled: true # Jump to date
+  msc4143_enabled: true # The specific MatrixRTC transport endpoint
 
 rtc:
   enabled: true
   focus:
     type: livekit
-    livekit_service_url: http://rtc-focus:8080
+    livekit_service_url: "http://matrix-lk-jwt:8080"
