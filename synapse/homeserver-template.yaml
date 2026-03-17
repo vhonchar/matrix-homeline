@@ -114,7 +114,6 @@ rtc:
     livekit_service_url: "http://matrix-lk-jwt:8080"
 
 user_directory:
-  enabled: false
+  enabled: true
   search_all_users: true
   prefer_local_users: true
-  
