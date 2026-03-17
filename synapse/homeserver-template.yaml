@@ -81,6 +81,12 @@ rc_message:
   per_second: 10
   burst_count: 100
 
+rc_delayed_event_mgmt:
+  # This needs to match at least the heart-beat frequency plus a bit of headroom
+  # Currently the heart-beat is every 5 seconds which translates into a rate of 0.2s
+  per_second: 1
+  burst_count: 20
+
 rc_login:
   address:
     per_second: 0.1
@@ -97,6 +103,9 @@ experimental_features:
   msc3401_enabled: true # Native video calls
   msc3030_enabled: true # Jump to date
   msc4143_enabled: true # The specific MatrixRTC transport endpoint
+  # MSC4222 needed for syncv2 state_after. This allow clients to
+  # correctly track the state of the room.
+  msc4222_enabled: true
 
 rtc:
   enabled: true

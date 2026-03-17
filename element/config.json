@@ -14,7 +14,7 @@
     "feature_group_calls": true
   },
   "element_call": {
-    "url": "https://matrix-homeline.chilllab.dev/rtc",
+    "url": "https://matrix-homeline.chilllab.dev/livekit/jwt",
     "use_excalidraw": false
   }
 }
