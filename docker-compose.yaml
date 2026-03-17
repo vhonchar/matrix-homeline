@@ -153,7 +153,7 @@ services:
     networks: [matrix]
     environment:
       LIVEKIT_JWT_BIND: "0.0.0.0:8080"
-      LIVEKIT_URL: "ws://matrix-livekit:7880"
+      LIVEKIT_URL: "wss://${MATRIX_DOMAIN}"
       LIVEKIT_KEY: ${LIVEKIT_API_KEY}
       LIVEKIT_SECRET: ${LIVEKIT_API_SECRET}
       LIVEKIT_FULL_ACCESS_HOMESERVERS: ${MATRIX_DOMAIN}
