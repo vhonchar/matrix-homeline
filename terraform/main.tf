@@ -3,7 +3,7 @@
 ########################################
 
 resource "aws_security_group" "matrix" {
-  name        = "matrix-sg"
+  name_prefix = "matrix-sg-"
   description = "Matrix Synapse, Element, and LiveKit ports"
   vpc_id      = data.aws_vpc.default.id
 
