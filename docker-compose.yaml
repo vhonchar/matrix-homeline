@@ -42,7 +42,7 @@ services:
       retries: 10
 
   synapse:
-    image: ghcr.io/element-hq/synapse:latest
+    image: ghcr.io/element-hq/synapse:v1.149.1
     container_name: matrix-synapse
     depends_on:
       postgres:
@@ -115,11 +115,12 @@ services:
       - --no-cli
   
   livekit:  
-    image: livekit/livekit-server:latest
+    image: livekit/livekit-server:v1.9
     container_name: matrix-livekit
     restart: unless-stopped
     networks: [matrix]
     environment:
+      # Use this standard format for the server
       LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
       LIVEKIT_CONFIG_BODY: |
         port: 7880
@@ -133,27 +134,28 @@ services:
           enabled: true
           domain: "${MATRIX_DOMAIN}"
           external_tls: true
-        # This mirrors the API keys for the internal logic
-        keys:
-          ${LIVEKIT_API_KEY}: "${LIVEKIT_API_SECRET}"
     expose:
       - "7880"
       - "7881"
     ports:
-      - "7880:7880"                # HTTP / Signal
-      - "7881:7881"                # RTC over TCP
-      - "50000-50100:50000-50100/udp" # Media traffic (UDP)
+      - "7880:7880"
+      - "7881:7881"
+      - "50000-50100:50000-50100/udp"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   auth-service:
-    image: ghcr.io/element-hq/lk-jwt-service:latest
+    image: ghcr.io/element-hq/lk-jwt-service:0.4.1
     container_name: matrix-lk-jwt
     restart: unless-stopped
     networks: [matrix]
     environment:
       LIVEKIT_JWT_BIND: "0.0.0.0:8080"
-      LIVEKIT_URL: https://${MATRIX_DOMAIN}/livekit
-      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
-      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      LIVEKIT_URL: "ws://matrix-livekit:7880"
+      LIVEKIT_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_SECRET: ${LIVEKIT_API_SECRET}
       LIVEKIT_FULL_ACCESS_HOMESERVERS: ${MATRIX_DOMAIN}
       # RUST_LOG: "info,lk_jwt_service=debug"
     expose:
