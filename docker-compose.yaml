@@ -73,7 +73,7 @@ services:
       - "8008:8008/udp"
 
   element:
-    image: vectorim/element-web:latest
+    image: vectorim/element-web:v1.12.12
     container_name: matrix-element
     restart: unless-stopped
     networks: [matrix]

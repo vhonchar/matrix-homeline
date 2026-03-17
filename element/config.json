@@ -8,5 +8,13 @@
   "disable_custom_urls": false,
   "disable_guests": true,
   "brand": "Matrix Homeline",
-  "default_theme": "light"
+  "default_theme": "light",
+  "features": {
+    "feature_element_call_video_rooms": true,
+    "feature_group_calls": true
+  },
+  "element_call": {
+    "url": "https://matrix-homeline.chilllab.dev/rtc",
+    "use_excalidraw": false
+  }
 }
