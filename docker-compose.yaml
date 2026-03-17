@@ -72,6 +72,16 @@ services:
       - "8008:8008/tcp"
       - "8008:8008/udp"
 
+  synapse-admin:
+    image: awesometechnologies/synapse-admin:0.11.4
+    container_name: synapse-admin
+    restart: unless-stopped
+    depends_on:
+      synapse:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+
   element:
     image: vectorim/element-web:v1.12.12
     container_name: matrix-element
