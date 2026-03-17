@@ -38,8 +38,10 @@ jobs:
           terraform_version: "1.9.0"
 
       - name: Terraform Init
+        working-directory: ./terraform
         run: terraform init
 
       - name: Terraform Force Unlock
+        working-directory: ./terraform
         # The -force flag is required for non-interactive shells (CI/CD)
         run: terraform force-unlock -force ${{ github.event.inputs.lock_id }}
