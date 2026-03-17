@@ -7,6 +7,10 @@ resource "aws_security_group" "matrix" {
   description = "Matrix Synapse, Element, and LiveKit ports"
   vpc_id      = data.aws_vpc.default.id
 
+  lifecycle {
+    create_before_destroy = true
+  }
+
   # --- Web & Matrix Client ---
   ingress {
     description = "HTTP/HTTPS for Nginx"
