@@ -111,9 +111,10 @@ services:
       - --no-multicast-peers
       - --no-cli
   
-  livekit:
+  livekit:  
     image: livekit/livekit-server:latest
     container_name: matrix-livekit
+    restart: unless-stopped
     networks: [matrix]
     environment:
       LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
@@ -122,14 +123,23 @@ services:
         rtc:
           tcp_port: 7881
           udp_port_range_start: 50000
-          udp_port_range_end: 50100
+          udp_port_range_end: 50500
+          # discover the public IP to give to the mobile app
+          use_external_ip: true
+        turn:
+          enabled: true
+          domain: "${MATRIX_DOMAIN}"
+          external_tls: true
+        # This mirrors the API keys for the internal logic
+        keys:
+          ${LIVEKIT_API_KEY}: "${LIVEKIT_API_SECRET}"
     expose:
       - "7880"
       - "7881"
     ports:
-      - "7880:7880"
-      - "7881:7881"
-      - "50000-50100:50000-50100/udp"
+      - "7880:7880"                # HTTP / Signal
+      - "7881:7881"                # RTC over TCP
+      - "50000-50500:50000-50500/udp" # Media traffic (UDP)
 
   auth-service:
     image: ghcr.io/element-hq/lk-jwt-service:latest
