@@ -1,0 +1,45 @@
+name: "Terraform Force Unlock"
+
+on:
+  workflow_dispatch:
+    inputs:
+      lock_id:
+        description: 'The Lock ID from the Terraform error message'
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-central-1
+  SSM_ROLE_TO_ASSUME: arn:aws:iam::887016236946:role/github-terraform-matrix-homeline
+
+jobs:
+  unlock:
+    name: "Force Unlock State"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.SSM_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-TerraformUnlock
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Force Unlock
+        # The -force flag is required for non-interactive shells (CI/CD)
+        run: terraform force-unlock -force ${{ github.event.inputs.lock_id }}
