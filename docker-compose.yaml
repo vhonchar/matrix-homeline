@@ -4,6 +4,9 @@ networks:
   matrix:
     name: matrix
     driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.100.0/24 # Use a range far away from AWS VPC defaults
 
 services:
   postgres:
