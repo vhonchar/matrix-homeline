@@ -76,6 +76,7 @@ services:
     image: awesometechnologies/synapse-admin:0.11.4
     container_name: synapse-admin
     restart: unless-stopped
+    networks: [matrix]
     depends_on:
       synapse:
         condition: service_healthy
